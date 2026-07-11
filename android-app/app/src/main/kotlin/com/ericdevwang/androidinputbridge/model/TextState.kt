@@ -1,0 +1,32 @@
+package com.ericdevwang.androidinputbridge.model
+
+const val MAX_TEXT_CODE_POINTS = 100_000
+
+data class TextState(
+    val text: String,
+    val version: Long,
+    val updatedAt: Long,
+) {
+    fun changeText(newText: String, nowMillis: Long): TextChangeResult {
+        if (newText.codePointCount(0, newText.length) > MAX_TEXT_CODE_POINTS) {
+            return TextChangeResult.RejectedTooLong
+        }
+        if (newText == text) return TextChangeResult.Accepted(this)
+        return TextChangeResult.Accepted(
+            copy(text = newText, version = version + 1, updatedAt = nowMillis),
+        )
+    }
+
+    fun clear(nowMillis: Long): TextState =
+        if (text.isEmpty()) this
+        else copy(text = "", version = version + 1, updatedAt = nowMillis)
+
+    companion object {
+        fun initial(nowMillis: Long) = TextState("", 0L, nowMillis)
+    }
+}
+
+sealed interface TextChangeResult {
+    data class Accepted(val state: TextState) : TextChangeResult
+    data object RejectedTooLong : TextChangeResult
+}
