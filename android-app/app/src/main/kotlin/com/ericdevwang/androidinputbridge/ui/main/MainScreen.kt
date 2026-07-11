@@ -1,52 +1,113 @@
 package com.ericdevwang.androidinputbridge.ui.main
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
-import androidx.navigation3.runtime.NavKey
 import com.ericdevwang.androidinputbridge.repository.DefaultTextRepository
 import com.ericdevwang.androidinputbridge.theme.AndroidInputBridgeTheme
 
 @Composable
 fun MainScreen(
-  onItemClick: (NavKey) -> Unit,
-  modifier: Modifier = Modifier,
-  viewModel: MainScreenViewModel? = null,
+    modifier: Modifier = Modifier,
+    viewModel: MainScreenViewModel? = null,
 ) {
-  val context = LocalContext.current
-  val mainScreenViewModel = viewModel ?: composeViewModel {
-    MainScreenViewModel(DefaultTextRepository(context.applicationContext))
-  }
-  val state by mainScreenViewModel.uiState.collectAsStateWithLifecycle()
-  if (!state.isLoading) {
-    MainScreen(data = listOf(state.text), modifier = modifier)
-  }
+    val context = LocalContext.current
+    val mainScreenViewModel = viewModel ?: composeViewModel {
+        MainScreenViewModel(DefaultTextRepository(context.applicationContext))
+    }
+    val uiState by mainScreenViewModel.uiState.collectAsStateWithLifecycle()
+
+    MainScreenContent(
+        uiState = uiState,
+        onTextChanged = mainScreenViewModel::onTextChanged,
+        onClear = mainScreenViewModel::onClear,
+        modifier = modifier,
+    )
 }
 
 @Composable
-internal fun MainScreen(data: List<String>, modifier: Modifier = Modifier) {
-  Column(modifier) { data.forEach { Greeting(it) } }
-}
+private fun MainScreenContent(
+    uiState: MainScreenUiState,
+    onTextChanged: (String) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(text = "Android Input Bridge")
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-  Text(text = "Hello $name!", modifier = modifier)
+        OutlinedTextField(
+            value = uiState.text,
+            onValueChange = onTextChanged,
+            enabled = !uiState.isLoading,
+            modifier = Modifier.fillMaxWidth().testTag("input_text"),
+            minLines = 8,
+            maxLines = 16,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Default,
+            ),
+        )
+
+        Text(
+            text = "Characters: ${uiState.characterCount}",
+            modifier = Modifier.testTag("character_count"),
+        )
+        Text(
+            text = "Version: ${uiState.version}",
+            modifier = Modifier.testTag("version_text"),
+        )
+
+        if (uiState.isLoading) CircularProgressIndicator()
+
+        uiState.persistenceMessage?.let { message ->
+            Text(text = message, modifier = Modifier.testTag("persistence_error"))
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        Button(
+            onClick = onClear,
+            enabled = !uiState.isLoading,
+            modifier = Modifier.testTag("clear_button"),
+        ) {
+            Text(text = "Clear")
+        }
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun MainScreenPreview() {
-  AndroidInputBridgeTheme { MainScreen(listOf("Android")) }
-}
-
-@Preview(showBackground = true, widthDp = 340)
-@Composable
-fun MainScreenPortraitPreview() {
-  AndroidInputBridgeTheme { MainScreen(listOf("Android")) }
+private fun MainScreenPreview() {
+    AndroidInputBridgeTheme {
+        MainScreenContent(
+            uiState = MainScreenUiState(isLoading = false),
+            onTextChanged = {},
+            onClear = {},
+            modifier = Modifier.padding(16.dp),
+        )
+    }
 }
