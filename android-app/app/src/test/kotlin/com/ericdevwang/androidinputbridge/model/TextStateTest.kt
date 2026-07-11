@@ -37,4 +37,31 @@ class TextStateTest {
 
         assertEquals(old, old.clear(200L))
     }
+
+    @Test
+    fun clearNonEmptyTextIncrementsVersionAndUpdatesTimestamp() {
+        val old = TextState("text", 4L, 100L)
+
+        assertEquals(TextState("", 5L, 200L), old.clear(200L))
+    }
+
+    @Test
+    fun supplementaryCharacterTextAtCodePointLimitIsAccepted() {
+        val text = "\uD83D\uDE00".repeat(MAX_TEXT_CODE_POINTS)
+
+        assertEquals(
+            TextChangeResult.Accepted(TextState(text, 1L, 200L)),
+            TextState.initial(100L).changeText(text, nowMillis = 200L),
+        )
+    }
+
+    @Test
+    fun supplementaryCharacterTextOverCodePointLimitIsRejected() {
+        val text = "\uD83D\uDE00".repeat(MAX_TEXT_CODE_POINTS + 1)
+
+        assertEquals(
+            TextChangeResult.RejectedTooLong,
+            TextState.initial(100L).changeText(text, nowMillis = 200L),
+        )
+    }
 }
