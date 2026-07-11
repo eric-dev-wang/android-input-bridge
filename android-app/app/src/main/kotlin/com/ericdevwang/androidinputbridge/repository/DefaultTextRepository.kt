@@ -1,5 +1,6 @@
 package com.ericdevwang.androidinputbridge.repository
 
+import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -8,6 +9,7 @@ import com.ericdevwang.androidinputbridge.model.TextState
 import com.ericdevwang.androidinputbridge.storage.TEXT_KEY
 import com.ericdevwang.androidinputbridge.storage.UPDATED_AT_KEY
 import com.ericdevwang.androidinputbridge.storage.VERSION_KEY
+import com.ericdevwang.androidinputbridge.storage.inputBridgeDataStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +21,11 @@ class DefaultTextRepository(
     private val dataStore: DataStore<Preferences>,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : TextRepository {
+    constructor(
+        context: Context,
+        clock: () -> Long = System::currentTimeMillis,
+    ) : this(context.inputBridgeDataStore, clock)
+
     private val mutex = Mutex()
     private val _state = MutableStateFlow(TextState.initial(clock()))
 
