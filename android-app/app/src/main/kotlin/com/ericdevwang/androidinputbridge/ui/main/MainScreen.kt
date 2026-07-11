@@ -5,30 +5,27 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 import androidx.navigation3.runtime.NavKey
-import com.ericdevwang.androidinputbridge.data.DefaultDataRepository
+import com.ericdevwang.androidinputbridge.repository.DefaultTextRepository
 import com.ericdevwang.androidinputbridge.theme.AndroidInputBridgeTheme
 
 @Composable
 fun MainScreen(
   onItemClick: (NavKey) -> Unit,
   modifier: Modifier = Modifier,
-  viewModel: MainScreenViewModel = viewModel { MainScreenViewModel(DefaultDataRepository()) },
+  viewModel: MainScreenViewModel? = null,
 ) {
-  val state by viewModel.uiState.collectAsStateWithLifecycle()
-  when (state) {
-    MainScreenUiState.Loading -> {
-      // Blank
-    }
-    is MainScreenUiState.Success -> {
-      MainScreen(data = (state as MainScreenUiState.Success).data, modifier = modifier)
-    }
-    is MainScreenUiState.Error -> {
-      Text("Error loading data: ${(state as MainScreenUiState.Error).throwable.message}")
-    }
+  val context = LocalContext.current
+  val mainScreenViewModel = viewModel ?: composeViewModel {
+    MainScreenViewModel(DefaultTextRepository(context.applicationContext))
+  }
+  val state by mainScreenViewModel.uiState.collectAsStateWithLifecycle()
+  if (!state.isLoading) {
+    MainScreen(data = listOf(state.text), modifier = modifier)
   }
 }
 
