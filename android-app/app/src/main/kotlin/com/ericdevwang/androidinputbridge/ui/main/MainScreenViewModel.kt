@@ -38,7 +38,7 @@ class MainScreenViewModel(
         try {
             repository.initialize()
             mutableUiState.value = repository.state.value.toUiState()
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
             if (error is CancellationException) throw error
             mutableUiState.value = MainScreenUiState(
                 isLoading = false,
@@ -74,7 +74,7 @@ class MainScreenViewModel(
 
                 try {
                     action()
-                } catch (error: Throwable) {
+                } catch (error: Exception) {
                     if (error is CancellationException) throw error
                     mutableUiState.value = repository.state.value.toUiState(
                         persistenceMessage = PERSISTENCE_FAILURE_MESSAGE,

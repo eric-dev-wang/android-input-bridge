@@ -151,6 +151,22 @@ class MainScreenViewModelTest {
     }
 
     @Test
+    fun successfulClearClearsPersistenceMessage() = runTest {
+        val repository = FakeTextRepository(TextState("keep", 1L, 1L))
+        val viewModel = MainScreenViewModel(repository)
+        viewModel.initializeJob.join()
+        repository.nextMutationFailure = IOException("write failed")
+
+        viewModel.onTextChanged("updated")
+        advanceUntilIdle()
+        viewModel.onClear()
+        advanceUntilIdle()
+
+        assertEquals("", viewModel.uiState.value.text)
+        assertNull(viewModel.uiState.value.persistenceMessage)
+    }
+
+    @Test
     fun rapidInputEventsAreAppliedInOrder() = runTest {
         val firstMutationGate = CompletableDeferred<Unit>()
         val secondMutationGate = CompletableDeferred<Unit>()
