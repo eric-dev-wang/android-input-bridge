@@ -7,8 +7,19 @@ This repository will contain two independent Gradle projects:
 - `android-app/`: Kotlin Android application, with production code under `app/src/main`, unit tests under `app/src/test`, and Android resources under `app/src/main/res`.
 - `android-studio-plugin/`: Kotlin IntelliJ Platform plugin, with code under `src/main/kotlin`, tests under `src/test/kotlin`, and plugin metadata under `src/main/resources/META-INF`.
 - `docs/`: requirements, commit conventions, and implementation notes.
+- `.worktrees/`: local isolated Git worktrees used for feature implementation; its contents are not committed.
 
 Keep the Android App and plugin independently buildable. Use `docs/requirements.md` as the functional source of truth and avoid adding shared modules until a clear protocol-sharing need exists.
+
+## Worktree Workflow
+
+Create temporary or isolated worktrees under `.worktrees/` using a descriptive name, for example:
+
+```bash
+git worktree add .worktrees/phase1-android-app -b agent/phase1-android-app
+```
+
+Keep implementation changes inside the selected worktree and remove it after the branch has been integrated. Do not commit files generated under `.worktrees/`.
 
 ## Build, Test, and Development Commands
 
@@ -33,7 +44,7 @@ Test version changes, persistence, UTF-8/multiline text, API responses, ADB pars
 
 ## Commit & Pull Request Guidelines
 
-Use the repository convention in [`docs/git-commit-convention.md`](docs/git-commit-convention.md): English by default and messages such as `feat(app): persist the current text state` or `fix(plugin): prevent duplicate refresh tasks`. Git history is not initialized in the current workspace, so this documented convention is authoritative.
+Use the repository convention in [`docs/git-commit-convention.md`](docs/git-commit-convention.md): English by default and messages such as `feat(app): persist the current text state` or `fix(plugin): prevent duplicate refresh tasks`. The existing Git history and this documented convention are authoritative.
 
 Keep commits focused. Pull requests should describe scope and validation commands, link relevant issues when available, include UI screenshots for Tool Window changes, and call out protocol or compatibility changes. Do not include generated build output or unrelated cleanup.
 
