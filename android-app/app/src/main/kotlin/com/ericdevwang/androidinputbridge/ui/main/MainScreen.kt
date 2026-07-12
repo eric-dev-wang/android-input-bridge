@@ -1,55 +1,166 @@
 package com.ericdevwang.androidinputbridge.ui.main
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation3.runtime.NavKey
-import com.ericdevwang.androidinputbridge.data.DefaultDataRepository
+import com.ericdevwang.androidinputbridge.R
 import com.ericdevwang.androidinputbridge.theme.AndroidInputBridgeTheme
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun MainScreen(
-  onItemClick: (NavKey) -> Unit,
-  modifier: Modifier = Modifier,
-  viewModel: MainScreenViewModel = viewModel { MainScreenViewModel(DefaultDataRepository()) },
+    modifier: Modifier = Modifier,
 ) {
-  val state by viewModel.uiState.collectAsStateWithLifecycle()
-  when (state) {
-    MainScreenUiState.Loading -> {
-      // Blank
-    }
-    is MainScreenUiState.Success -> {
-      MainScreen(data = (state as MainScreenUiState.Success).data, modifier = modifier)
-    }
-    is MainScreenUiState.Error -> {
-      Text("Error loading data: ${(state as MainScreenUiState.Error).throwable.message}")
-    }
-  }
+    val viewModel: MainScreenViewModel = koinViewModel()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    MainScreenContent(
+        uiState = uiState,
+        onTextChanged = viewModel::onTextChanged,
+        onClear = viewModel::onClear,
+        modifier = modifier,
+    )
 }
 
 @Composable
-internal fun MainScreen(data: List<String>, modifier: Modifier = Modifier) {
-  Column(modifier) { data.forEach { Greeting(it) } }
-}
+fun MainScreenContent(
+    uiState: MainScreenUiState,
+    onTextChanged: (TextFieldValue) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val textFieldValue: TextFieldValue
+    val version: Long
+    val characterCount: Int
+    val isLoading: Boolean
+    val isEnabled: Boolean
+    val persistenceMessage: PersistenceMessage?
+    when (uiState) {
+        MainScreenUiState.Loading -> {
+            textFieldValue = TextFieldValue()
+            version = 0L
+            characterCount = 0
+            isLoading = true
+            isEnabled = false
+            persistenceMessage = null
+        }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-  Text(text = "Hello $name!", modifier = modifier)
+        is MainScreenUiState.Content -> {
+            textFieldValue = uiState.textFieldValue
+            version = uiState.version
+            characterCount = uiState.characterCount
+            isLoading = false
+            isEnabled = true
+            persistenceMessage = uiState.persistenceMessage
+        }
+
+        MainScreenUiState.InitializationError -> {
+            textFieldValue = TextFieldValue()
+            version = 0L
+            characterCount = 0
+            isLoading = false
+            isEnabled = false
+            persistenceMessage = PersistenceMessage.InitializationFailed
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .imePadding()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(text = stringResource(R.string.input_bridge_title))
+
+        OutlinedTextField(
+            value = textFieldValue,
+            onValueChange = onTextChanged,
+            enabled = isEnabled,
+            modifier = Modifier.fillMaxWidth().testTag("input_text"),
+            minLines = 8,
+            maxLines = 16,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Default,
+            ),
+        )
+
+        Text(
+            text = stringResource(R.string.characters_count, characterCount),
+            modifier = Modifier.testTag("character_count"),
+        )
+        Text(
+            text = stringResource(R.string.version_format, version),
+            modifier = Modifier.testTag("version_text"),
+        )
+
+        if (isLoading) CircularProgressIndicator()
+
+        persistenceMessage?.let { message ->
+            val messageRes = when (message) {
+                PersistenceMessage.InitializationFailed -> R.string.initialization_error
+                PersistenceMessage.SaveFailed -> R.string.persistence_error
+            }
+            Text(
+                text = stringResource(messageRes),
+                modifier = Modifier.testTag("persistence_error"),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        Button(
+            onClick = onClear,
+            enabled = isEnabled,
+            modifier = Modifier.testTag("clear_button"),
+        ) {
+            Text(text = stringResource(R.string.clear))
+        }
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun MainScreenPreview() {
-  AndroidInputBridgeTheme { MainScreen(listOf("Android")) }
-}
-
-@Preview(showBackground = true, widthDp = 340)
-@Composable
-fun MainScreenPortraitPreview() {
-  AndroidInputBridgeTheme { MainScreen(listOf("Android")) }
+private fun MainScreenPreview() {
+    AndroidInputBridgeTheme {
+        MainScreenContent(
+            uiState = MainScreenUiState.Content(
+                textFieldValue = TextFieldValue(),
+                version = 0L,
+                characterCount = 0,
+            ),
+            onTextChanged = {},
+            onClear = {},
+            modifier = Modifier.padding(16.dp),
+        )
+    }
 }
