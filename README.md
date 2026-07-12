@@ -6,10 +6,10 @@ Android 手机负责输入和保存文本；Android Studio 插件负责通过 AD
 
 ## 当前状态
 
-当前仓库处于需求和工程初始化阶段。第一阶段计划包含两个独立项目：
+当前仓库使用一个根 Gradle 项目管理 Android App 和 Android Studio Plugin 两个模块：
 
 ```text
-android-app/
+app/
 android-studio-plugin/
 ```
 
@@ -64,33 +64,33 @@ Android Studio 插件：
 - 读取 Windows 剪贴板、Android Studio 编辑器、项目文件或电脑内容。
 - Windows 独立桌面程序、云服务、账户系统、局域网同步或电脑到手机同步。
 
-## 预期目录
+## 项目结构
 
 ```text
 .
 ├── README.md
 ├── docs/
-│   ├── requirements.md
-│   └── superpowers/
-│       └── plans/
-├── android-app/
+├── app/
 └── android-studio-plugin/
 ```
 
-两个子项目应保持独立构建。第一阶段不强制抽取共享模块；如果未来抽取协议模块，也不得让 Android App 和插件共享不兼容的平台依赖。
+`app/` 和 `android-studio-plugin/` 是同一个 Gradle 项目的独立模块。当前仓库已经包含 Android App 模块，插件模块将在实现时加入根项目的 `settings.gradle.kts`。第一阶段不强制抽取共享模块；如果未来抽取协议模块，也不得让 Android App 和插件共享不兼容的平台依赖。
 
 ## 构建入口
 
-子项目创建后，预期使用以下命令：
+所有命令从仓库根目录执行：
 
 ```bash
 ./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest
+./gradlew :app:lintDebug
 ```
 
 构建 Android Studio 插件：
 
 ```bash
-./gradlew buildPlugin
+./gradlew :android-studio-plugin:buildPlugin
+./gradlew :android-studio-plugin:test
 ```
 
 插件 ZIP 预期位于：
@@ -99,7 +99,7 @@ Android Studio 插件：
 android-studio-plugin/build/distributions/
 ```
 
-实际 Gradle wrapper、模块路径和最低兼容的 Android Studio 版本必须在对应子项目 README 中明确记录。
+Gradle wrapper 位于仓库根目录。插件模块加入后，必须在本项目根 Gradle 配置中声明其模块路径，并明确最低兼容的 Android Studio 版本。
 
 ## 开发顺序
 

@@ -56,14 +56,16 @@ Tool Window 展示文本
 
 ## 3. 第一阶段模块边界
 
-仓库第一阶段包含两个独立模块：
+仓库第一阶段使用一个根 Gradle 项目管理两个独立模块：
 
 ```text
-android-app/
+app/
 android-studio-plugin/
 ```
 
-### 3.1 `android-app/`
+两个模块共享根目录下的 Gradle wrapper、版本目录和项目配置，但保持各自的平台依赖和构建任务边界。
+
+### 3.1 `app/`
 
 Android App 负责：
 
@@ -777,27 +779,19 @@ Fetched text: 这是用户输入的完整内容
 
 ## 17. 推荐项目结构
 
-### 17.1 Android App
+### 17.1 Android App 模块
 
 ```text
-android-app/
-├── app/
-│   ├── src/main/java/.../
-│   │   ├── MainActivity.kt
-│   │   ├── ui/
-│   │   │   ├── MainScreen.kt
-│   │   │   └── MainViewModel.kt
-│   │   ├── model/
-│   │   │   └── TextState.kt
-│   │   ├── repository/
-│   │   │   └── TextRepository.kt
-│   │   ├── server/
-│   │   │   ├── InputHttpServer.kt
-│   │   │   ├── ApiModels.kt
-│   │   │   └── ServerController.kt
-│   │   └── storage/
-│   │       └── TextStateStorage.kt
-│   └── src/test/
+app/
+├── src/main/kotlin/.../
+│   ├── MainActivity.kt
+│   ├── ui/
+│   ├── model/
+│   ├── repository/
+│   ├── server/
+│   └── storage/
+├── src/test/
+├── src/androidTest/
 └── build.gradle.kts
 ```
 
@@ -906,16 +900,17 @@ POST /api/v1/text/clear
 
 必须包含完整 IntelliJ Platform 插件工程、可构建插件 ZIP、README、安装步骤、ADB 配置说明、Tool Window 使用说明、已知限制和单元测试。
 
-构建命令应类似：
+从根项目执行的插件构建命令应类似：
 
 ```bash
-./gradlew buildPlugin
+./gradlew :android-studio-plugin:buildPlugin
+./gradlew :android-studio-plugin:test
 ```
 
 输出插件包应位于：
 
 ```text
-build/distributions/
+android-studio-plugin/build/distributions/
 ```
 
 ## 20. MVP 验收标准
