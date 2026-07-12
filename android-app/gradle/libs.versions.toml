@@ -14,7 +14,7 @@ junit = "4.13.2"
 kotlin = "2.4.0"
 nav3Core = "1.1.4"
 lifecycleViewmodelNav3 = "2.11.0"
-koin = "4.1.2-Beta1"
+koin = "4.1.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
