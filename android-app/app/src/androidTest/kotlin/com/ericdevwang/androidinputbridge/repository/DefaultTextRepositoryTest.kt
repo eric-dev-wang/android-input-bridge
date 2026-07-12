@@ -9,6 +9,10 @@ import com.ericdevwang.androidinputbridge.model.TextState
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
@@ -28,8 +32,9 @@ class DefaultTextRepositoryTest {
     @Test
     fun initializeRestoresTextVersionAndTimestamp() = runTest {
         val file = testFile()
+        val firstScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val firstStore = PreferenceDataStoreFactory.create(
-            scope = backgroundScope,
+            scope = firstScope,
             produceFile = { file },
         )
         val first = DefaultTextRepository(firstStore) { 100L }
@@ -37,9 +42,16 @@ class DefaultTextRepositoryTest {
         first.initialize()
         first.changeText("hello")
         advanceUntilIdle()
+        firstScope.cancel()
 
-        val second = DefaultTextRepository(firstStore) { 200L }
+        val secondScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val secondStore = PreferenceDataStoreFactory.create(
+            scope = secondScope,
+            produceFile = { file },
+        )
+        val second = DefaultTextRepository(secondStore) { 200L }
         second.initialize()
+        secondScope.cancel()
 
         assertEquals(TextState("hello", 1L, 100L), second.state.value)
     }

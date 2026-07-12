@@ -13,13 +13,15 @@ data class TextState(
         }
         if (newText == text) return TextChangeResult.Accepted(this)
         return TextChangeResult.Accepted(
-            copy(text = newText, version = version + 1, updatedAt = nowMillis),
+            copy(text = newText, version = version + 1, updatedAt = nextUpdatedAt(nowMillis)),
         )
     }
 
     fun clear(nowMillis: Long): TextState =
         if (text.isEmpty()) this
-        else copy(text = "", version = version + 1, updatedAt = nowMillis)
+        else copy(text = "", version = version + 1, updatedAt = nextUpdatedAt(nowMillis))
+
+    private fun nextUpdatedAt(nowMillis: Long): Long = maxOf(nowMillis, updatedAt + 1L)
 
     companion object {
         fun initial(nowMillis: Long) = TextState("", 0L, nowMillis)

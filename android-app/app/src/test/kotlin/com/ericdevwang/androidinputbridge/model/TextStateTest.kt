@@ -39,6 +39,17 @@ class TextStateTest {
     }
 
     @Test
+    fun realChangesAdvanceTimestampWhenClockDoesNotAdvance() {
+        val old = TextState("old", version = 4L, updatedAt = 100L)
+
+        val changed = (old.changeText("new", nowMillis = 100L) as TextChangeResult.Accepted).state
+        val cleared = changed.clear(nowMillis = 100L)
+
+        assertEquals(101L, changed.updatedAt)
+        assertEquals(102L, cleared.updatedAt)
+    }
+
+    @Test
     fun clearNonEmptyTextIncrementsVersionAndUpdatesTimestamp() {
         val old = TextState("text", 4L, 100L)
 
