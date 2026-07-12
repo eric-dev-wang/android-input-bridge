@@ -1,0 +1,45 @@
+plugins {
+    alias(libs.plugins.kotlin.jvm)
+    id("org.jetbrains.intellij.platform")
+}
+
+group = "com.ericdevwang.androidinputbridge.plugin"
+version = "1.0.0"
+
+kotlin {
+    jvmToolchain(21)
+}
+
+dependencies {
+    implementation(project(":protocol"))
+
+    intellijPlatform {
+        val localAndroidStudioPath = providers.gradleProperty("androidStudioPath")
+        if (localAndroidStudioPath.isPresent) {
+            local(localAndroidStudioPath.get())
+            bundledPlugin("org.jetbrains.android")
+        } else {
+            androidStudio("2026.1.1.10")
+            plugin("org.jetbrains.android:261.23567.138")
+        }
+        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
+    }
+
+    testImplementation(libs.junit)
+}
+
+intellijPlatform {
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild = "261"
+            untilBuild = "261.*"
+        }
+    }
+}
+
+tasks {
+    withType<JavaCompile>().configureEach {
+        sourceCompatibility = "21"
+        targetCompatibility = "21"
+    }
+}

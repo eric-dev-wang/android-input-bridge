@@ -10,6 +10,7 @@
 .gradle/
 **/build/
 .kotlin/
+.intellijPlatform/
 
 # Android and native build output
 local.properties
