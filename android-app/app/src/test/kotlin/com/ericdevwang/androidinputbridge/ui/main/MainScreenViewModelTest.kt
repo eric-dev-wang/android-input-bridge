@@ -2,31 +2,24 @@ package com.ericdevwang.androidinputbridge.ui.main
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.lifecycle.viewModelScope
 import com.ericdevwang.androidinputbridge.model.MAX_TEXT_CODE_POINTS
 import com.ericdevwang.androidinputbridge.model.TextState
-import com.ericdevwang.androidinputbridge.persistence.TextPersistenceCoordinator
+import com.ericdevwang.androidinputbridge.repository.PersistenceResult
 import com.ericdevwang.androidinputbridge.repository.TextRepository
-import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -63,8 +56,8 @@ class MainScreenViewModelTest {
     @Test
     fun inputStateUpdatesBeforePersistenceCompletes() = runTest {
         val repository = FakeTextRepository(TextState("", 0L, 1L))
-        val persistGate = CompletableDeferred<Unit>()
-        repository.persistGate = persistGate
+        val saveGate = CompletableDeferred<Unit>()
+        repository.saveGate = saveGate
         val viewModel = MainScreenViewModel(repository, clock = { 2L })
         advanceUntilIdle()
 
@@ -73,46 +66,12 @@ class MainScreenViewModelTest {
         val stateBeforePersistence = viewModel.contentState()
         assertEquals("fast", stateBeforePersistence.textFieldValue.text)
         assertEquals(TextRange(4), stateBeforePersistence.textFieldValue.selection)
-        assertTrue(repository.persisted.isEmpty())
+        assertEquals(TextState("fast", 1L, 2L), repository.saved.single())
 
-        persistGate.complete(Unit)
+        saveGate.complete(Unit)
         advanceUntilIdle()
 
-        assertEquals(TextState("fast", 1L, 2L), repository.persisted.last())
-    }
-
-    @Test
-    fun pendingPersistenceSurvivesViewModelClear() = runTest {
-        val repository = FakeTextRepository(TextState("", 0L, 1L))
-        val persistGate = CompletableDeferred<Unit>()
-        repository.persistGate = persistGate
-        val coordinatorScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
-        val coordinator = TextPersistenceCoordinator(repository, coordinatorScope)
-        val viewModel = MainScreenViewModel(
-            repository = repository,
-            persistenceCoordinator = coordinator,
-            clock = { 2L },
-        )
-        advanceUntilIdle()
-
-        viewModel.onTextChanged(TextFieldValue("fast", selection = TextRange(4)))
-        viewModel.viewModelScope.cancel()
-
-        val recreatedViewModel = MainScreenViewModel(
-            repository = repository,
-            persistenceCoordinator = coordinator,
-            clock = { 3L },
-        )
-        runCurrent()
-
-        assertEquals("fast", recreatedViewModel.contentState().textFieldValue.text)
-        assertTrue(repository.persisted.isEmpty())
-
-        persistGate.complete(Unit)
-        advanceUntilIdle()
-
-        assertEquals(TextState("fast", 1L, 2L), repository.persisted.last())
-        coordinatorScope.cancel()
+        assertNull(viewModel.contentState().persistenceMessage)
     }
 
     @Test
@@ -155,7 +114,7 @@ class MainScreenViewModelTest {
     @Test
     fun writeFailureKeepsInMemoryTextAndShowsPersistenceMessage() = runTest {
         val repository = FakeTextRepository(TextState("keep", 1L, 1L))
-        repository.nextPersistenceFailure = IOException("write failed")
+        repository.nextPersistenceFailure = true
         val viewModel = MainScreenViewModel(repository, clock = { 2L })
         advanceUntilIdle()
 
@@ -171,7 +130,7 @@ class MainScreenViewModelTest {
     @Test
     fun laterSuccessfulMutationClearsPersistenceMessage() = runTest {
         val repository = FakeTextRepository(TextState("", 0L, 1L))
-        repository.nextPersistenceFailure = IOException("write failed")
+        repository.nextPersistenceFailure = true
         val viewModel = MainScreenViewModel(repository, clock = { 2L })
         advanceUntilIdle()
 
@@ -188,7 +147,7 @@ class MainScreenViewModelTest {
     @Test
     fun newInputKeepsSaveFailureUntilItsPersistenceCompletes() = runTest {
         val repository = FakeTextRepository(TextState("", 0L, 1L))
-        repository.nextPersistenceFailure = IOException("write failed")
+        repository.nextPersistenceFailure = true
         val viewModel = MainScreenViewModel(repository, clock = { 2L })
         advanceUntilIdle()
 
@@ -196,20 +155,20 @@ class MainScreenViewModelTest {
         advanceUntilIdle()
         assertEquals(PersistenceMessage.SaveFailed, viewModel.contentState().persistenceMessage)
 
-        val persistGate = CompletableDeferred<Unit>()
-        repository.persistGate = persistGate
+        val saveGate = CompletableDeferred<Unit>()
+        repository.saveGate = saveGate
         viewModel.onTextChanged(TextFieldValue("second", selection = TextRange(6)))
 
         assertEquals(PersistenceMessage.SaveFailed, viewModel.contentState().persistenceMessage)
 
-        persistGate.complete(Unit)
+        saveGate.complete(Unit)
         advanceUntilIdle()
 
         assertNull(viewModel.contentState().persistenceMessage)
     }
 
     @Test
-    fun clearUpdatesMemoryAndQueuesEmptySnapshot() = runTest {
+    fun clearUpdatesMemoryAndSavesEmptySnapshot() = runTest {
         val repository = FakeTextRepository(TextState("keep", 1L, 1L))
         val viewModel = MainScreenViewModel(repository, clock = { 2L })
         advanceUntilIdle()
@@ -220,7 +179,7 @@ class MainScreenViewModelTest {
         val state = viewModel.contentState()
         assertEquals("", state.textFieldValue.text)
         assertEquals(2L, state.version)
-        assertEquals(TextState("", 2L, 2L), repository.persisted.last())
+        assertEquals(TextState("", 2L, 2L), repository.saved.last())
     }
 }
 
@@ -229,10 +188,11 @@ private fun MainScreenViewModel.contentState(): MainScreenUiState.Content =
 
 private class FailingTextRepository : TextRepository {
     override val state: Flow<TextState> = flow {
-        throw IOException("read failed")
+        error("read failed")
     }
 
-    override suspend fun persist(state: TextState) = error("unreachable")
+    override suspend fun save(state: TextState): PersistenceResult =
+        PersistenceResult.Failed(state.version)
 }
 
 private class FakeTextRepository(
@@ -241,17 +201,21 @@ private class FakeTextRepository(
     private val mutableState = MutableStateFlow(initialState)
 
     override val state: Flow<TextState> = mutableState
-    val persisted = mutableListOf<TextState>()
-    var persistGate: CompletableDeferred<Unit>? = null
-    var nextPersistenceFailure: Throwable? = null
+    val saved = mutableListOf<TextState>()
+    var saveGate: CompletableDeferred<Unit>? = null
+    var nextPersistenceFailure = false
 
-    override suspend fun persist(state: TextState) {
-        persistGate?.await()
-        nextPersistenceFailure?.let {
-            nextPersistenceFailure = null
-            throw it
+    override suspend fun save(state: TextState): PersistenceResult {
+        saved += state
+        saveGate?.let { gate ->
+            saveGate = null
+            gate.await()
         }
-        persisted += state
+        if (nextPersistenceFailure) {
+            nextPersistenceFailure = false
+            return PersistenceResult.Failed(state.version)
+        }
         mutableState.value = state
+        return PersistenceResult.Succeeded(state.version)
     }
 }

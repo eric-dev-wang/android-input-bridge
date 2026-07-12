@@ -1,45 +1,56 @@
 package com.ericdevwang.androidinputbridge.repository
 
-import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.MutablePreferences
-import androidx.datastore.preferences.core.edit
 import com.ericdevwang.androidinputbridge.model.TextState
-import com.ericdevwang.androidinputbridge.storage.TEXT_KEY
-import com.ericdevwang.androidinputbridge.storage.UPDATED_AT_KEY
-import com.ericdevwang.androidinputbridge.storage.VERSION_KEY
-import com.ericdevwang.androidinputbridge.storage.inputBridgeDataStore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class DefaultTextRepository(
-    private val dataStore: DataStore<Preferences>,
+    private val dataSource: TextDataSource,
+    scope: CoroutineScope,
 ) : TextRepository {
-    constructor(context: Context) : this(context.inputBridgeDataStore)
-
-    override val state: Flow<TextState> =
-        dataStore.data
-            .map { preferences -> preferences.toTextState() }
-            .distinctUntilChanged()
-
-    override suspend fun persist(state: TextState) {
-        dataStore.edit { preferences ->
-            state.writeTo(preferences)
-        }
-    }
-}
-
-private fun Preferences.toTextState(): TextState =
-    TextState(
-        text = this[TEXT_KEY] ?: "",
-        version = this[VERSION_KEY] ?: 0L,
-        updatedAt = this[UPDATED_AT_KEY] ?: 0L,
+    private data class SaveRequest(
+        val state: TextState,
+        val result: CompletableDeferred<PersistenceResult>,
     )
 
-private fun TextState.writeTo(preferences: MutablePreferences) {
-    preferences[TEXT_KEY] = text
-    preferences[VERSION_KEY] = version
-    preferences[UPDATED_AT_KEY] = updatedAt
+    private val requests = Channel<SaveRequest>(
+        capacity = Channel.CONFLATED,
+        onUndeliveredElement = { request ->
+            request.result.complete(PersistenceResult.Superseded(request.state.version))
+        },
+    )
+
+    override val state: Flow<TextState> = dataSource.state
+
+    init {
+        scope.launch {
+            for (request in requests) {
+                persist(request)
+            }
+        }
+    }
+
+    override suspend fun save(state: TextState): PersistenceResult {
+        val request = SaveRequest(state, CompletableDeferred())
+        requests.send(request)
+        return request.result.await()
+    }
+
+    private suspend fun persist(request: SaveRequest) {
+        val result = try {
+            dataSource.persist(request.state)
+            PersistenceResult.Succeeded(request.state.version)
+        } catch (error: Exception) {
+            if (error is CancellationException) {
+                request.result.cancel(error)
+                throw error
+            }
+            PersistenceResult.Failed(request.state.version)
+        }
+        request.result.complete(result)
+    }
 }

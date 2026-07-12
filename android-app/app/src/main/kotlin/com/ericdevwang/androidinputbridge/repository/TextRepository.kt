@@ -5,5 +5,13 @@ import kotlinx.coroutines.flow.Flow
 
 interface TextRepository {
     val state: Flow<TextState>
-    suspend fun persist(state: TextState)
+    suspend fun save(state: TextState): PersistenceResult
+}
+
+sealed interface PersistenceResult {
+    data class Succeeded(val version: Long) : PersistenceResult
+
+    data class Failed(val version: Long) : PersistenceResult
+
+    data class Superseded(val version: Long) : PersistenceResult
 }

@@ -10,19 +10,20 @@ import com.ericdevwang.androidinputbridge.model.TextState
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Test
-import junit.framework.TestCase.assertEquals
-import junit.framework.TestCase.fail
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DefaultTextRepositoryTest {
@@ -34,50 +35,64 @@ class DefaultTextRepositoryTest {
             scope = backgroundScope,
             produceFile = ::testFile,
         )
-        val repository = DefaultTextRepository(store)
+        val repositoryScope = CoroutineScope(
+            SupervisorJob() + UnconfinedTestDispatcher(testScheduler),
+        )
+        val repository = DefaultTextRepository(DataStoreTextDataSource(store), repositoryScope)
 
         assertEquals(TextState("", 0L, 0L), repository.state.first())
+        repositoryScope.cancel()
     }
 
     @Test
     fun stateFlowRestoresPersistedTextVersionAndTimestamp() = runTest {
         val file = testFile()
-        val firstScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val firstDataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val firstStore = PreferenceDataStoreFactory.create(
-            scope = firstScope,
+            scope = firstDataStoreScope,
             produceFile = { file },
         )
-        val first = DefaultTextRepository(firstStore)
+        val firstRepositoryScope = CoroutineScope(
+            SupervisorJob() + UnconfinedTestDispatcher(testScheduler),
+        )
+        val first = DefaultTextRepository(DataStoreTextDataSource(firstStore), firstRepositoryScope)
 
-        first.persist(TextState("hello", 1L, 100L))
+        val save = async { first.save(TextState("hello", 1L, 100L)) }
         advanceUntilIdle()
-        firstScope.cancel()
+        assertEquals(PersistenceResult.Succeeded(1L), save.await())
+        firstRepositoryScope.cancel()
+        firstDataStoreScope.cancel()
 
-        val secondScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val secondDataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val secondStore = PreferenceDataStoreFactory.create(
-            scope = secondScope,
+            scope = secondDataStoreScope,
             produceFile = { file },
         )
-        val second = DefaultTextRepository(secondStore)
+        val secondRepositoryScope = CoroutineScope(
+            SupervisorJob() + UnconfinedTestDispatcher(testScheduler),
+        )
+        val second = DefaultTextRepository(DataStoreTextDataSource(secondStore), secondRepositoryScope)
 
         assertEquals(TextState("hello", 1L, 100L), second.state.first())
-        secondScope.cancel()
+        secondRepositoryScope.cancel()
+        secondDataStoreScope.cancel()
     }
 
     @Test
-    fun writeFailureDoesNotChangePersistedState() = runTest {
+    fun writeFailureReturnsFailureAndDoesNotChangePersistedState() = runTest {
         val store = FailingDataStore()
-        val repository = DefaultTextRepository(store)
+        val repositoryScope = CoroutineScope(
+            SupervisorJob() + UnconfinedTestDispatcher(testScheduler),
+        )
+        val repository = DefaultTextRepository(DataStoreTextDataSource(store), repositoryScope)
         store.failWrites = true
 
-        try {
-            repository.persist(TextState("keep", 1L, 100L))
-            fail("Expected persistence failure")
-        } catch (_: IOException) {
-            // Expected: the durable state must remain unchanged.
-        }
-
+        assertEquals(
+            PersistenceResult.Failed(1L),
+            repository.save(TextState("keep", 1L, 100L)),
+        )
         assertEquals(TextState("", 0L, 0L), repository.state.first())
+        repositoryScope.cancel()
     }
 
     private fun testFile(): File =
