@@ -87,7 +87,14 @@ private fun MainScreenContent(
         if (uiState.isLoading) CircularProgressIndicator()
 
         uiState.persistenceMessage?.let { message ->
-            Text(text = message, modifier = Modifier.testTag("persistence_error"))
+            val messageRes = when (message) {
+                PersistenceMessage.InitializationFailed -> R.string.initialization_error
+                PersistenceMessage.SaveFailed -> R.string.persistence_error
+            }
+            Text(
+                text = stringResource(messageRes),
+                modifier = Modifier.testTag("persistence_error"),
+            )
         }
 
         Spacer(modifier = Modifier.height(4.dp))

@@ -117,7 +117,7 @@ class MainScreenViewModelTest {
 
         assertEquals("updated", viewModel.uiState.value.text)
         assertEquals(2L, viewModel.uiState.value.version)
-        assertEquals("Text could not be saved.", viewModel.uiState.value.persistenceMessage)
+        assertEquals(PersistenceMessage.SaveFailed, viewModel.uiState.value.persistenceMessage)
     }
 
     @Test

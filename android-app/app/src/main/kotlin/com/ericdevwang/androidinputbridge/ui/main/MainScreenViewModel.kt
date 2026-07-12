@@ -42,7 +42,7 @@ class MainScreenViewModel(
             if (error is CancellationException) throw error
             mutableUiState.value = MainScreenUiState(
                 isLoading = false,
-                persistenceMessage = INITIALIZATION_FAILURE_MESSAGE,
+                persistenceMessage = PersistenceMessage.InitializationFailed,
             )
         }
     }
@@ -77,7 +77,7 @@ class MainScreenViewModel(
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
                     mutableUiState.value = repository.state.value.toUiState(
-                        persistenceMessage = PERSISTENCE_FAILURE_MESSAGE,
+                        persistenceMessage = PersistenceMessage.SaveFailed,
                     )
                 }
             }
@@ -90,9 +90,12 @@ class MainScreenViewModel(
     }
 
     private companion object {
-        const val INITIALIZATION_FAILURE_MESSAGE = "Saved text could not be loaded."
-        const val PERSISTENCE_FAILURE_MESSAGE = "Text could not be saved."
     }
+}
+
+enum class PersistenceMessage {
+    InitializationFailed,
+    SaveFailed,
 }
 
 data class MainScreenUiState(
@@ -100,10 +103,10 @@ data class MainScreenUiState(
     val text: String = "",
     val version: Long = 0L,
     val characterCount: Int = 0,
-    val persistenceMessage: String? = null,
+    val persistenceMessage: PersistenceMessage? = null,
 )
 
-private fun TextState.toUiState(persistenceMessage: String? = null): MainScreenUiState =
+private fun TextState.toUiState(persistenceMessage: PersistenceMessage? = null): MainScreenUiState =
     MainScreenUiState(
         isLoading = false,
         text = text,
