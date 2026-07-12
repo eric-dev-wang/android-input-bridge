@@ -26,6 +26,6 @@ internal class ServerStartupRetry(
 
     private companion object {
         const val MAX_ATTEMPTS = 3
-        val RETRY_DELAYS_MILLIS = longArrayOf(1_000L, 2_000L, 5_000L)
+        val RETRY_DELAYS_MILLIS = longArrayOf(1_000L, 2_000L)
     }
 }

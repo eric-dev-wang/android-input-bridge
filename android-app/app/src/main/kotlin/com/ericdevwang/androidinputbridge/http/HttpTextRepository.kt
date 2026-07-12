@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.first
 
 class HttpTextRepository(
     private val repository: TextRepository,
-    private val appVersion: String = DEFAULT_APP_VERSION,
+    private val appVersion: String,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     suspend fun text(): TextResponse {
@@ -42,7 +42,6 @@ class HttpTextRepository(
 
     companion object {
         const val PROTOCOL_VERSION = 1
-        const val DEFAULT_APP_VERSION = "1.0.0"
     }
 }
 

@@ -15,7 +15,10 @@ class HttpTextRepositoryTest {
     fun textReadsCurrentStateWithoutChangingUnicodeOrWhitespace() = runTest {
         val state = TextState("中文\nemoji 😀\t", version = 7L, updatedAt = 123L)
 
-        val result = HttpTextRepository(FakeTextRepository(state)).text()
+        val result = HttpTextRepository(
+            repository = FakeTextRepository(state),
+            appVersion = "1.0.0",
+        ).text()
 
         assertEquals(TextResponse(state.text, state.version, state.updatedAt), result)
     }
@@ -42,10 +45,11 @@ class HttpTextRepositoryTest {
     @Test
     fun clearMapsSuccessfulRepositoryResult() = runTest {
         val result = HttpTextRepository(
-            FakeTextRepository(
+            repository = FakeTextRepository(
                 initialState = TextState("text", 3L, 10L),
                 clearResult = ClearResult.Cleared(clearedVersion = 3L, newVersion = 4L),
             ),
+            appVersion = "1.0.0",
         ).clear(expectedVersion = 3L)
 
         assertEquals(
@@ -57,10 +61,11 @@ class HttpTextRepositoryTest {
     @Test
     fun clearMapsVersionConflictRepositoryResult() = runTest {
         val result = HttpTextRepository(
-            FakeTextRepository(
+            repository = FakeTextRepository(
                 initialState = TextState("new", 4L, 10L),
                 clearResult = ClearResult.VersionConflict(currentVersion = 4L),
             ),
+            appVersion = "1.0.0",
         ).clear(expectedVersion = 3L)
 
         assertEquals(HttpClearResult.VersionConflict(currentVersion = 4L), result)

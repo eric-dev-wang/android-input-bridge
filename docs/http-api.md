@@ -206,6 +206,16 @@ Unsupported method: `405 Method Not Allowed`
 }
 ```
 
+Unexpected server failure: `500 Internal Server Error`
+
+```json
+{
+  "code": "INTERNAL_SERVER_ERROR",
+  "message": "Unexpected server error.",
+  "details": {}
+}
+```
+
 ## Operational Boundary
 
 The HTTP Server is available only while the Android Foreground Service is

@@ -1,7 +1,7 @@
 package com.ericdevwang.androidinputbridge.server
 
-import com.ericdevwang.androidinputbridge.http.ErrorResponse
 import com.ericdevwang.androidinputbridge.http.ClearResponse
+import com.ericdevwang.androidinputbridge.http.ErrorResponse
 import com.ericdevwang.androidinputbridge.http.HealthResponse
 import com.ericdevwang.androidinputbridge.http.HttpClearResult
 import com.ericdevwang.androidinputbridge.http.HttpTextRepository
@@ -16,6 +16,7 @@ import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.plugins.statuspages.exception
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -91,6 +92,14 @@ fun Application.module(repository: HttpTextRepository) {
                 message = "The HTTP method is not allowed for this endpoint.",
             )
         }
+        exception<Throwable> { call, cause ->
+            if (cause is CancellationException) throw cause
+            call.respondError(
+                status = HttpStatusCode.InternalServerError,
+                code = "INTERNAL_SERVER_ERROR",
+                message = "Unexpected server error.",
+            )
+        }
     }
 
     routing {
@@ -150,7 +159,7 @@ fun Application.module(repository: HttpTextRepository) {
 
 fun Application.module(
     repository: com.ericdevwang.androidinputbridge.repository.TextRepository,
-    appVersion: String = HttpTextRepository.DEFAULT_APP_VERSION,
+    appVersion: String,
     clock: () -> Long = System::currentTimeMillis,
 ) {
     module(HttpTextRepository(repository, appVersion, clock))

@@ -24,7 +24,10 @@ class InputHttpServerTest {
     fun occupiedPortFailsWithoutSelectingFallbackPort() {
         ServerSocket(0).use { occupiedSocket ->
             InputHttpServer(
-                repository = HttpTextRepository(FakeTextRepository(TextState.initial(0L))),
+                repository = HttpTextRepository(
+                    repository = FakeTextRepository(TextState.initial(0L)),
+                    appVersion = "1.0.0",
+                ),
                 config = InputHttpServerConfig(
                     host = "127.0.0.1",
                     port = occupiedSocket.localPort,
@@ -59,7 +62,8 @@ class InputHttpServerTest {
         application {
             module(
                 HttpTextRepository(
-                    FakeTextRepository(TextState("中文\nline 😀\t", 7L, 123L)),
+                    repository = FakeTextRepository(TextState("中文\nline 😀\t", 7L, 123L)),
+                    appVersion = "1.0.0",
                 ),
             )
         }
@@ -75,7 +79,14 @@ class InputHttpServerTest {
 
     @Test
     fun textReturnsEmptyText() = testApplication {
-        application { module(HttpTextRepository(FakeTextRepository(TextState.initial(5L)))) }
+        application {
+            module(
+                HttpTextRepository(
+                    repository = FakeTextRepository(TextState.initial(5L)),
+                    appVersion = "1.0.0",
+                ),
+            )
+        }
 
         val response = client.get("/api/v1/text")
 
@@ -95,6 +106,7 @@ class InputHttpServerTest {
                         TextState("text", 3L, 10L),
                         clearResult = ClearResult.Cleared(3L, 4L),
                     ),
+                    appVersion = "1.0.0",
                 ),
             )
         }
@@ -117,6 +129,7 @@ class InputHttpServerTest {
                         TextState("new", 4L, 10L),
                         clearResult = ClearResult.VersionConflict(4L),
                     ),
+                    appVersion = "1.0.0",
                 ),
             )
         }
@@ -132,7 +145,14 @@ class InputHttpServerTest {
 
     @Test
     fun invalidExpectedVersionReturnsBadRequest() = testApplication {
-        application { module(HttpTextRepository(FakeTextRepository(TextState.initial(0L)))) }
+        application {
+            module(
+                HttpTextRepository(
+                    repository = FakeTextRepository(TextState.initial(0L)),
+                    appVersion = "1.0.0",
+                ),
+            )
+        }
 
         val response = client.post("/api/v1/text/clear/not-a-version")
 
@@ -145,7 +165,14 @@ class InputHttpServerTest {
 
     @Test
     fun negativeExpectedVersionReturnsBadRequest() = testApplication {
-        application { module(HttpTextRepository(FakeTextRepository(TextState.initial(0L)))) }
+        application {
+            module(
+                HttpTextRepository(
+                    repository = FakeTextRepository(TextState.initial(0L)),
+                    appVersion = "1.0.0",
+                ),
+            )
+        }
 
         val response = client.post("/api/v1/text/clear/-1")
 
@@ -158,7 +185,14 @@ class InputHttpServerTest {
 
     @Test
     fun unknownPathReturnsNotFound() = testApplication {
-        application { module(HttpTextRepository(FakeTextRepository(TextState.initial(0L)))) }
+        application {
+            module(
+                HttpTextRepository(
+                    repository = FakeTextRepository(TextState.initial(0L)),
+                    appVersion = "1.0.0",
+                ),
+            )
+        }
 
         val response = client.get("/api/v1/unknown")
 
@@ -171,7 +205,14 @@ class InputHttpServerTest {
 
     @Test
     fun unsupportedMethodReturnsMethodNotAllowed() = testApplication {
-        application { module(HttpTextRepository(FakeTextRepository(TextState.initial(0L)))) }
+        application {
+            module(
+                HttpTextRepository(
+                    repository = FakeTextRepository(TextState.initial(0L)),
+                    appVersion = "1.0.0",
+                ),
+            )
+        }
 
         val response = client.post {
             url("/api/v1/text")
@@ -186,7 +227,14 @@ class InputHttpServerTest {
 
     @Test
     fun repositoryFailureUsesTextEndpointError() = testApplication {
-        application { module(HttpTextRepository(FailingTextRepository())) }
+        application {
+            module(
+                HttpTextRepository(
+                    repository = FailingTextRepository(),
+                    appVersion = "1.0.0",
+                ),
+            )
+        }
 
         val response = client.get("/api/v1/text")
 
@@ -199,13 +247,41 @@ class InputHttpServerTest {
 
     @Test
     fun repositoryFailureUsesClearEndpointError() = testApplication {
-        application { module(HttpTextRepository(FailingTextRepository())) }
+        application {
+            module(
+                HttpTextRepository(
+                    repository = FailingTextRepository(),
+                    appVersion = "1.0.0",
+                ),
+            )
+        }
 
         val response = client.post("/api/v1/text/clear/0")
 
         assertEquals(HttpStatusCode.InternalServerError, response.status)
         assertEquals(
             "{\"code\":\"TEXT_CLEAR_FAILED\",\"message\":\"Current text could not be cleared.\",\"details\":{}}",
+            response.bodyAsText(),
+        )
+    }
+
+    @Test
+    fun unexpectedFailureUsesGenericServerError() = testApplication {
+        application {
+            module(
+                HttpTextRepository(
+                    repository = FakeTextRepository(TextState.initial(0L)),
+                    appVersion = "1.0.0",
+                    clock = { error("clock failed") },
+                ),
+            )
+        }
+
+        val response = client.get("/api/v1/health")
+
+        assertEquals(HttpStatusCode.InternalServerError, response.status)
+        assertEquals(
+            "{\"code\":\"INTERNAL_SERVER_ERROR\",\"message\":\"Unexpected server error.\",\"details\":{}}",
             response.bodyAsText(),
         )
     }

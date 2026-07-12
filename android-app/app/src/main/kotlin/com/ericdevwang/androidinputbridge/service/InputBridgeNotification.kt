@@ -24,7 +24,7 @@ internal object InputBridgeNotification {
 
     fun build(context: Context): Notification =
         NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_input_bridge)
             .setContentTitle(context.getString(R.string.server_notification_title))
             .setContentText(context.getString(R.string.server_notification_text))
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
