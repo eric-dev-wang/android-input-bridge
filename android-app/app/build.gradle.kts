@@ -9,7 +9,7 @@ android {
     compileSdk = 37
     defaultConfig {
         applicationId = "com.ericdevwang.androidinputbridge"
-        minSdk = 32
+        minSdk = 31
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"

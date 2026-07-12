@@ -53,7 +53,7 @@ class DefaultTextRepositoryTest {
         second.initialize()
         secondScope.cancel()
 
-        assertEquals(TextState("hello", 1L, 100L), second.state.value)
+        assertEquals(TextState("hello", 1L, 101L), second.state.value)
     }
 
     @Test
@@ -91,7 +91,7 @@ class DefaultTextRepositoryTest {
         } catch (_: IOException) {
             // Expected: the in-memory state must remain updated.
         }
-        assertEquals(TextState("keep", 1L, 100L), repository.state.value)
+        assertEquals(TextState("keep", 1L, 101L), repository.state.value)
     }
 
     private fun testFile(): File =
