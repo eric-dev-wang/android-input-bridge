@@ -26,16 +26,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 import com.ericdevwang.androidinputbridge.R
 import com.ericdevwang.androidinputbridge.repository.DefaultTextRepository
+import com.ericdevwang.androidinputbridge.repository.TextRepository
 import com.ericdevwang.androidinputbridge.theme.AndroidInputBridgeTheme
 
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
+    repository: TextRepository? = null,
     viewModel: MainScreenViewModel? = null,
 ) {
     val context = LocalContext.current
     val mainScreenViewModel = viewModel ?: composeViewModel {
-        MainScreenViewModel(DefaultTextRepository(context.applicationContext))
+        MainScreenViewModel(repository ?: DefaultTextRepository(context.applicationContext))
     }
     val uiState by mainScreenViewModel.uiState.collectAsStateWithLifecycle()
 
