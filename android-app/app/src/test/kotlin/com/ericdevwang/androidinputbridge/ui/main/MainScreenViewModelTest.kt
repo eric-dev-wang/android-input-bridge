@@ -4,6 +4,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import com.ericdevwang.androidinputbridge.model.MAX_TEXT_CODE_POINTS
 import com.ericdevwang.androidinputbridge.model.TextState
+import com.ericdevwang.androidinputbridge.repository.ClearResult
 import com.ericdevwang.androidinputbridge.repository.PersistenceResult
 import com.ericdevwang.androidinputbridge.repository.TextRepository
 import kotlinx.coroutines.CompletableDeferred
@@ -179,7 +180,55 @@ class MainScreenViewModelTest {
         val state = viewModel.contentState()
         assertEquals("", state.textFieldValue.text)
         assertEquals(2L, state.version)
-        assertEquals(TextState("", 2L, 2L), repository.saved.last())
+        assertEquals(listOf(1L), repository.clearedVersions)
+        assertNull(state.persistenceMessage)
+    }
+
+    @Test
+    fun clearDelegatesExpectedVersionAfterUpdatingUiImmediately() = runTest {
+        val repository = FakeTextRepository(TextState("keep", 4L, 1L))
+        val clearGate = CompletableDeferred<Unit>()
+        repository.clearGate = clearGate
+        val viewModel = MainScreenViewModel(repository, clock = { 2L })
+        advanceUntilIdle()
+
+        viewModel.onClear()
+
+        assertEquals(listOf(4L), repository.clearedVersions)
+        assertEquals("", viewModel.contentState().textFieldValue.text)
+        assertEquals(5L, viewModel.contentState().version)
+
+        clearGate.complete(Unit)
+        advanceUntilIdle()
+        assertNull(viewModel.contentState().persistenceMessage)
+    }
+
+    @Test
+    fun clearFailureKeepsUiResponsiveAndShowsPersistenceMessage() = runTest {
+        val repository = FakeTextRepository(TextState("keep", 1L, 1L))
+        repository.nextClearFailure = true
+        val viewModel = MainScreenViewModel(repository, clock = { 2L })
+        advanceUntilIdle()
+
+        viewModel.onClear()
+        advanceUntilIdle()
+
+        assertEquals("", viewModel.contentState().textFieldValue.text)
+        assertEquals(PersistenceMessage.SaveFailed, viewModel.contentState().persistenceMessage)
+    }
+
+    @Test
+    fun sameVersionExternalTextReplacesLocalState() = runTest {
+        val repository = FakeTextRepository(TextState("local", 1L, 1L))
+        val viewModel = MainScreenViewModel(repository)
+        advanceUntilIdle()
+
+        repository.publish(TextState("external", 1L, 2L))
+        advanceUntilIdle()
+
+        assertEquals("external", viewModel.contentState().textFieldValue.text)
+        assertEquals(1L, viewModel.contentState().version)
+        assertEquals(8, viewModel.contentState().characterCount)
     }
 }
 
@@ -193,6 +242,9 @@ private class FailingTextRepository : TextRepository {
 
     override suspend fun save(state: TextState): PersistenceResult =
         PersistenceResult.Failed(state.version)
+
+    override suspend fun clear(expectedVersion: Long): ClearResult =
+        error("clear failed")
 }
 
 private class FakeTextRepository(
@@ -202,8 +254,15 @@ private class FakeTextRepository(
 
     override val state: Flow<TextState> = mutableState
     val saved = mutableListOf<TextState>()
+    val clearedVersions = mutableListOf<Long>()
     var saveGate: CompletableDeferred<Unit>? = null
+    var clearGate: CompletableDeferred<Unit>? = null
     var nextPersistenceFailure = false
+    var nextClearFailure = false
+
+    fun publish(state: TextState) {
+        mutableState.value = state
+    }
 
     override suspend fun save(state: TextState): PersistenceResult {
         saved += state
@@ -217,5 +276,24 @@ private class FakeTextRepository(
         }
         mutableState.value = state
         return PersistenceResult.Succeeded(state.version)
+    }
+
+    override suspend fun clear(expectedVersion: Long): ClearResult {
+        clearedVersions += expectedVersion
+        clearGate?.let { gate ->
+            clearGate = null
+            gate.await()
+        }
+        if (nextClearFailure) {
+            nextClearFailure = false
+            error("clear failed")
+        }
+        val current = mutableState.value
+        if (current.version != expectedVersion) {
+            return ClearResult.VersionConflict(current.version)
+        }
+        val cleared = current.clear(current.updatedAt + 1L)
+        mutableState.value = cleared
+        return ClearResult.Cleared(current.version, cleared.version)
     }
 }

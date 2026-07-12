@@ -1,5 +1,6 @@
 package com.ericdevwang.androidinputbridge.ui.main
 
+import android.Manifest
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -12,8 +13,13 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
+import androidx.test.rule.GrantPermissionRule
 
 class MainScreenPersistenceTest {
+    @get:Rule
+    val notificationPermissionRule: GrantPermissionRule =
+        GrantPermissionRule.grant(Manifest.permission.POST_NOTIFICATIONS)
+
     @get:Rule
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
