@@ -1,2 +1,18 @@
 # Local isolated Git worktrees
 .worktrees/
+
+# IDE files
+*.iml
+.idea/
+.DS_Store
+
+# Gradle and Kotlin build output
+.gradle/
+**/build/
+.kotlin/
+
+# Android and native build output
+local.properties
+**/captures/
+**/.externalNativeBuild/
+**/.cxx/

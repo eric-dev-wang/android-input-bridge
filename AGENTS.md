@@ -2,35 +2,38 @@
 
 ## Project Structure & Module Organization
 
-This repository will contain two independent Gradle projects:
+This repository uses one root Gradle project with two independent modules:
 
-- `android-app/`: Kotlin Android application, with production code under `app/src/main`, unit tests under `app/src/test`, and Android resources under `app/src/main/res`.
-- `android-studio-plugin/`: Kotlin IntelliJ Platform plugin, with code under `src/main/kotlin`, tests under `src/test/kotlin`, and plugin metadata under `src/main/resources/META-INF`.
+- `app/`: Kotlin Android application, with production code under `app/src/main`, unit tests under `app/src/test`, and Android resources under `app/src/main/res`.
+- `android-studio-plugin/`: Kotlin IntelliJ Platform plugin module, with code under `src/main/kotlin`, tests under `src/test/kotlin`, and plugin metadata under `src/main/resources/META-INF`. The module will be added to the root build when plugin implementation begins.
 - `docs/`: requirements, commit conventions, and implementation notes.
 - `.worktrees/`: local isolated Git worktrees used for feature implementation; its contents are not committed.
 
-Keep the Android App and plugin independently buildable. Use `docs/requirements.md` as the functional source of truth and avoid adding shared modules until a clear protocol-sharing need exists.
+Keep the Android App and plugin independently buildable within the same root Gradle project. Use `docs/requirements.md` as the functional source of truth and avoid adding shared modules until a clear protocol-sharing need exists.
 
 ## Worktree Workflow
 
 Create temporary or isolated worktrees under `.worktrees/` using a descriptive name, for example:
 
 ```bash
-git worktree add .worktrees/phase1-android-app -b agent/phase1-android-app
+git worktree add .worktrees/feature-name -b agent/feature-name
 ```
 
 Keep implementation changes inside the selected worktree and remove it after the branch has been integrated. Do not commit files generated under `.worktrees/`.
 
 ## Build, Test, and Development Commands
 
-Run commands from the relevant project directory after its Gradle wrapper exists:
+Run commands from the repository root:
 
 ```bash
-cd android-app && ./gradlew :app:assembleDebug
-cd android-app && ./gradlew :app:testDebugUnitTest
-cd android-studio-plugin && ./gradlew buildPlugin
-cd android-studio-plugin && ./gradlew test
+./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest
+./gradlew :app:lintDebug
+./gradlew :android-studio-plugin:buildPlugin
+./gradlew :android-studio-plugin:test
 ```
+
+The plugin commands become available after the plugin module is added to the root build.
 
 Use `adb forward tcp:18080 tcp:18080` for manual end-to-end checks. HTTP and ADB operations must run off the IntelliJ EDT and use bounded timeouts.
 
