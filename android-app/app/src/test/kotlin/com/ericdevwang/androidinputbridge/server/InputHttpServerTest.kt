@@ -17,8 +17,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.net.ServerSocket
 
 class InputHttpServerTest {
+    @Test(expected = java.net.BindException::class)
+    fun occupiedPortFailsWithoutSelectingFallbackPort() {
+        ServerSocket(0).use { occupiedSocket ->
+            InputHttpServer(
+                repository = HttpTextRepository(FakeTextRepository(TextState.initial(0L))),
+                config = InputHttpServerConfig(
+                    host = "127.0.0.1",
+                    port = occupiedSocket.localPort,
+                ),
+            ).start()
+        }
+    }
+
     @Test
     fun healthReturnsExactJsonBody() = testApplication {
         application {
@@ -124,7 +138,7 @@ class InputHttpServerTest {
 
         assertEquals(HttpStatusCode.BadRequest, response.status)
         assertEquals(
-            "{\"code\":\"INVALID_EXPECTED_VERSION\",\"message\":\"Expected version must be a non-negative integer.\",\"details\":null}",
+            "{\"code\":\"INVALID_EXPECTED_VERSION\",\"message\":\"Expected version must be a non-negative integer.\",\"details\":{}}",
             response.bodyAsText(),
         )
     }
@@ -137,7 +151,7 @@ class InputHttpServerTest {
 
         assertEquals(HttpStatusCode.BadRequest, response.status)
         assertEquals(
-            "{\"code\":\"INVALID_EXPECTED_VERSION\",\"message\":\"Expected version must be a non-negative integer.\",\"details\":null}",
+            "{\"code\":\"INVALID_EXPECTED_VERSION\",\"message\":\"Expected version must be a non-negative integer.\",\"details\":{}}",
             response.bodyAsText(),
         )
     }
@@ -150,7 +164,7 @@ class InputHttpServerTest {
 
         assertEquals(HttpStatusCode.NotFound, response.status)
         assertEquals(
-            "{\"code\":\"NOT_FOUND\",\"message\":\"The requested endpoint was not found.\",\"details\":null}",
+            "{\"code\":\"NOT_FOUND\",\"message\":\"The requested endpoint was not found.\",\"details\":{}}",
             response.bodyAsText(),
         )
     }
@@ -165,7 +179,7 @@ class InputHttpServerTest {
 
         assertEquals(HttpStatusCode.MethodNotAllowed, response.status)
         assertEquals(
-            "{\"code\":\"METHOD_NOT_ALLOWED\",\"message\":\"The HTTP method is not allowed for this endpoint.\",\"details\":null}",
+            "{\"code\":\"METHOD_NOT_ALLOWED\",\"message\":\"The HTTP method is not allowed for this endpoint.\",\"details\":{}}",
             response.bodyAsText(),
         )
     }
@@ -178,7 +192,7 @@ class InputHttpServerTest {
 
         assertEquals(HttpStatusCode.InternalServerError, response.status)
         assertEquals(
-            "{\"code\":\"TEXT_READ_FAILED\",\"message\":\"Unable to read current text.\",\"details\":null}",
+            "{\"code\":\"TEXT_READ_FAILED\",\"message\":\"Current text could not be read.\",\"details\":{}}",
             response.bodyAsText(),
         )
     }
@@ -191,7 +205,7 @@ class InputHttpServerTest {
 
         assertEquals(HttpStatusCode.InternalServerError, response.status)
         assertEquals(
-            "{\"code\":\"CLEAR_FAILED\",\"message\":\"Unable to clear text.\",\"details\":null}",
+            "{\"code\":\"TEXT_CLEAR_FAILED\",\"message\":\"Current text could not be cleared.\",\"details\":{}}",
             response.bodyAsText(),
         )
     }

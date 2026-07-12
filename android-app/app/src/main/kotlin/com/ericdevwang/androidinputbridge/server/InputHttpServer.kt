@@ -21,6 +21,8 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.CancellationException
+import java.net.InetSocketAddress
+import java.net.ServerSocket
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
@@ -43,6 +45,11 @@ class InputHttpServer(
     @Synchronized
     fun start() {
         if (engine != null) return
+
+        ServerSocket().use { socket ->
+            socket.reuseAddress = false
+            socket.bind(InetSocketAddress(config.host, config.port))
+        }
 
         engine = embeddedServer(
             factory = CIO,
@@ -99,7 +106,7 @@ fun Application.module(repository: HttpTextRepository) {
                 call.respondError(
                     status = HttpStatusCode.InternalServerError,
                     code = "TEXT_READ_FAILED",
-                    message = "Unable to read current text.",
+                    message = "Current text could not be read.",
                 )
             }
         }
@@ -133,8 +140,8 @@ fun Application.module(repository: HttpTextRepository) {
                 if (error is CancellationException) throw error
                 call.respondError(
                     status = HttpStatusCode.InternalServerError,
-                    code = "CLEAR_FAILED",
-                    message = "Unable to clear text.",
+                    code = "TEXT_CLEAR_FAILED",
+                    message = "Current text could not be cleared.",
                 )
             }
         }
@@ -165,7 +172,7 @@ private suspend fun io.ktor.server.application.ApplicationCall.respondError(
     status: HttpStatusCode,
     code: String,
     message: String,
-    details: JsonElement? = null,
+    details: JsonElement = buildJsonObject { },
 ) {
     respond(status, ErrorResponse(code, message, details))
 }

@@ -2,6 +2,7 @@ package com.ericdevwang.androidinputbridge.http
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class HealthResponse(
@@ -28,10 +29,5 @@ data class ClearResponse(
 data class ErrorResponse(
     val code: String,
     val message: String,
-    val details: JsonElement? = null,
-)
-
-@Serializable
-data class VersionConflictDetails(
-    val currentVersion: Long,
+    val details: JsonElement = JsonObject(emptyMap()),
 )
