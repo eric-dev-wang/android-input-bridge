@@ -1,6 +1,9 @@
 package com.ericdevwang.androidinputbridge.http
 
 import com.ericdevwang.androidinputbridge.model.TextState
+import com.ericdevwang.androidinputbridge.protocol.ClearResponse
+import com.ericdevwang.androidinputbridge.protocol.HealthResponse
+import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import com.ericdevwang.androidinputbridge.repository.ClearResult
 import com.ericdevwang.androidinputbridge.repository.PersistenceResult
 import com.ericdevwang.androidinputbridge.repository.TextRepository

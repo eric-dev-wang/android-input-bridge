@@ -6,12 +6,15 @@ Android 手机负责输入和保存文本；Android Studio 插件负责通过 AD
 
 ## 当前状态
 
-当前仓库使用一个根 Gradle 项目管理 Android App 和 Android Studio Plugin 两个模块：
+当前仓库使用一个根 Gradle 项目管理 Android App、共享协议和 Android Studio Plugin 三个模块：
 
 ```text
 app/
+protocol/
 android-studio-plugin/
 ```
+
+`protocol/` 是 Android App 和 Android Studio Plugin 共享的纯 Kotlin/JVM HTTP 协议模块。
 
 具体需求、协议、边界、测试和交付标准见：[docs/requirements.md](docs/requirements.md)。
 
@@ -71,10 +74,11 @@ Android Studio 插件：
 ├── README.md
 ├── docs/
 ├── app/
+├── protocol/
 └── android-studio-plugin/
 ```
 
-`app/` 和 `android-studio-plugin/` 是同一个 Gradle 项目的独立模块。当前仓库已经包含 Android App 模块，插件模块将在实现时加入根项目的 `settings.gradle.kts`。第一阶段不强制抽取共享模块；如果未来抽取协议模块，也不得让 Android App 和插件共享不兼容的平台依赖。
+`app/`、`protocol/` 和 `android-studio-plugin/` 属于同一个 Gradle 项目。`protocol/` 只包含 HTTP wire model、序列化配置和协议常量，不依赖 Android、Ktor Server 或 IntelliJ Platform。当前仓库已经包含 Android App 和协议模块，插件模块将在实现时加入根项目的 `settings.gradle.kts`。
 
 ## 构建入口
 
@@ -84,6 +88,7 @@ Android Studio 插件：
 ./gradlew :app:assembleDebug
 ./gradlew :app:testDebugUnitTest
 ./gradlew :app:lintDebug
+./gradlew :protocol:test
 ```
 
 构建 Android Studio 插件：

@@ -2,6 +2,10 @@ package com.ericdevwang.androidinputbridge.http
 
 import com.ericdevwang.androidinputbridge.repository.ClearResult
 import com.ericdevwang.androidinputbridge.repository.TextRepository
+import com.ericdevwang.androidinputbridge.protocol.ClearResponse
+import com.ericdevwang.androidinputbridge.protocol.HealthResponse
+import com.ericdevwang.androidinputbridge.protocol.ProtocolConstants
+import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import kotlinx.coroutines.flow.first
 
 class HttpTextRepository(
@@ -22,7 +26,7 @@ class HttpTextRepository(
     fun health(): HealthResponse = HealthResponse(
         status = "ok",
         appVersion = appVersion,
-        protocolVersion = PROTOCOL_VERSION,
+        protocolVersion = ProtocolConstants.CURRENT_VERSION,
         serverTime = clock(),
     )
 
@@ -39,10 +43,6 @@ class HttpTextRepository(
                 currentVersion = result.currentVersion,
             )
         }
-
-    companion object {
-        const val PROTOCOL_VERSION = 1
-    }
 }
 
 sealed interface HttpClearResult {

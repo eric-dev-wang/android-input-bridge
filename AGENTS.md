@@ -2,14 +2,15 @@
 
 ## Project Structure & Module Organization
 
-This repository uses one root Gradle project with two independent modules:
+This repository uses one root Gradle project with two product modules and one shared module:
 
 - `app/`: Kotlin Android application, with production code under `app/src/main`, unit tests under `app/src/test`, and Android resources under `app/src/main/res`.
+- `protocol/`: plain Kotlin/JVM HTTP protocol module, with shared DTOs under `protocol/src/main/kotlin` and serialization tests under `protocol/src/test/kotlin`.
 - `android-studio-plugin/`: Kotlin IntelliJ Platform plugin module, with code under `src/main/kotlin`, tests under `src/test/kotlin`, and plugin metadata under `src/main/resources/META-INF`. The module will be added to the root build when plugin implementation begins.
 - `docs/`: requirements, commit conventions, and implementation notes.
 - `.worktrees/`: local isolated Git worktrees used for feature implementation; its contents are not committed.
 
-Keep the Android App and plugin independently buildable within the same root Gradle project. Use `docs/requirements.md` as the functional source of truth and avoid adding shared modules until a clear protocol-sharing need exists.
+Keep the Android App and plugin independently buildable within the same root Gradle project. Keep `protocol/` limited to versioned wire models and serialization contracts. Use `docs/requirements.md` as the functional source of truth.
 
 ## Worktree Workflow
 
@@ -29,6 +30,7 @@ Run commands from the repository root:
 ./gradlew :app:assembleDebug
 ./gradlew :app:testDebugUnitTest
 ./gradlew :app:lintDebug
+./gradlew :protocol:test
 ./gradlew :android-studio-plugin:buildPlugin
 ./gradlew :android-studio-plugin:test
 ```

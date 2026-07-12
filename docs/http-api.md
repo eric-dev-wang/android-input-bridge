@@ -21,6 +21,10 @@ The API is versioned under `/api/v1`. The protocol does not use authentication,
 tokens, accounts, or a global success envelope. HTTP status codes indicate
 success or failure.
 
+The wire models are defined in the root project's `:protocol` Kotlin/JVM
+module. Both the Android server and the future Android Studio plugin client
+must consume these shared models instead of defining duplicate response types.
+
 All JSON responses use:
 
 ```text

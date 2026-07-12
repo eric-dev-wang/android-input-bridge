@@ -1,11 +1,11 @@
 package com.ericdevwang.androidinputbridge.server
 
-import com.ericdevwang.androidinputbridge.http.ClearResponse
-import com.ericdevwang.androidinputbridge.http.ErrorResponse
-import com.ericdevwang.androidinputbridge.http.HealthResponse
 import com.ericdevwang.androidinputbridge.http.HttpClearResult
 import com.ericdevwang.androidinputbridge.http.HttpTextRepository
-import com.ericdevwang.androidinputbridge.http.TextResponse
+import com.ericdevwang.androidinputbridge.protocol.ClearResponse
+import com.ericdevwang.androidinputbridge.protocol.ErrorResponse
+import com.ericdevwang.androidinputbridge.protocol.HealthResponse
+import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
