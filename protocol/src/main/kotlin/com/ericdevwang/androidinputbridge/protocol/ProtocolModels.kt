@@ -1,4 +1,4 @@
-package com.ericdevwang.androidinputbridge.http
+package com.ericdevwang.androidinputbridge.protocol
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement

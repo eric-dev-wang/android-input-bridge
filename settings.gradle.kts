@@ -31,3 +31,4 @@ plugins {
 
 rootProject.name = "Android Input Bridge"
 include(":app")
+include(":protocol")

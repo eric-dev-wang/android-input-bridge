@@ -44,6 +44,8 @@ kotlin {
 }
 
 dependencies {
+  implementation(project(":protocol"))
+
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)

@@ -56,14 +56,15 @@ Tool Window 展示文本
 
 ## 3. 第一阶段模块边界
 
-仓库第一阶段使用一个根 Gradle 项目管理两个独立模块：
+仓库第一阶段使用一个根 Gradle 项目管理两个产品模块和一个共享协议模块：
 
 ```text
 app/
+protocol/
 android-studio-plugin/
 ```
 
-两个模块共享根目录下的 Gradle wrapper、版本目录和项目配置，但保持各自的平台依赖和构建任务边界。
+三个模块共享根目录下的 Gradle wrapper、版本目录和项目配置，但保持各自的平台依赖和构建任务边界。
 
 ### 3.1 `app/`
 
@@ -89,6 +90,16 @@ Android App 负责：
 - 将文本写入系统剪贴板。
 - 请求 Android App 清空文本。
 - 展示设备、ADB、forward、服务连接和错误状态。
+
+### 3.3 `protocol/`
+
+共享协议模块负责：
+
+- 定义 HTTP 成功响应和错误响应的 wire model。
+- 提供 Kotlin serialization 所需的协议序列化模型。
+- 提供协议版本常量。
+
+该模块必须使用纯 Kotlin/JVM，不得依赖 Android、Ktor Server、DataStore、Koin 或 IntelliJ Platform。Android App 和 Android Studio Plugin 可以依赖该模块，但 `protocol/` 不得反向依赖任何产品模块。
 
 ## 4. 非目标和硬边界
 
@@ -655,7 +666,7 @@ Request timeout: 2 seconds
 
 ### 11.3 JSON 模型
 
-可以使用 Kotlin serialization 或 Gson。插件与 Android App 的 JSON Model 分开定义；未来可以抽取共享 protocol module，但第一阶段不强制。
+使用 Kotlin serialization。插件与 Android App 共享根项目中的 `protocol` module；HTTP wire model 不得在两个产品模块中重复定义。
 
 ## 12. 剪贴板
 
@@ -795,7 +806,19 @@ app/
 └── build.gradle.kts
 ```
 
-### 17.2 Android Studio 插件
+### 17.2 Shared Protocol Module
+
+```text
+protocol/
+├── src/main/kotlin/com/ericdevwang/androidinputbridge/protocol/
+│   ├── ProtocolModels.kt
+│   └── ProtocolConstants.kt
+├── src/test/kotlin/com/ericdevwang/androidinputbridge/protocol/
+│   └── ProtocolModelSerializationTest.kt
+└── build.gradle.kts
+```
+
+### 17.3 Android Studio 插件
 
 ```text
 android-studio-plugin/
@@ -810,8 +833,7 @@ android-studio-plugin/
 │   │   ├── AdbDevice.kt
 │   │   └── PortForwardManager.kt
 │   ├── http/
-│   │   ├── AndroidBridgeClient.kt
-│   │   └── ApiModels.kt
+│   │   └── AndroidBridgeClient.kt
 │   ├── clipboard/
 │   │   └── ClipboardWriter.kt
 │   ├── settings/
@@ -825,6 +847,9 @@ android-studio-plugin/
 │   └── META-INF/plugin.xml
 └── build.gradle.kts
 ```
+
+The plugin module must depend on `:protocol` for HTTP response models rather
+than defining a second set of API model classes.
 
 ## 18. 测试要求
 
@@ -840,7 +865,16 @@ android-studio-plugin/
 - 空文本行为。
 - Emoji、多行文本和超长文本边界。
 
-### 18.2 Android API 测试
+### 18.2 Shared Protocol 单元测试
+
+至少测试：
+
+- Health、Text、Clear 和 Error model 的 JSON 序列化。
+- 中文、换行和 Emoji 的原样编码。
+- Error details 默认空对象行为。
+- 协议版本常量。
+
+### 18.3 Android API 测试
 
 覆盖：
 
@@ -852,7 +886,7 @@ POST /api/v1/text/clear
 
 验证 HTTP status、JSON 格式、UTF-8、version conflict 和错误响应。
 
-### 18.3 插件单元测试
+### 18.4 插件单元测试
 
 至少测试：
 
@@ -865,7 +899,7 @@ POST /api/v1/text/clear
 - Copy 成功后才 Clear 的调用顺序。
 - 请求失败后的单次重连。
 
-### 18.4 手工集成测试
+### 18.5 手工集成测试
 
 必须验证：
 
@@ -896,7 +930,15 @@ POST /api/v1/text/clear
 ./gradlew :app:assembleDebug
 ```
 
-### 19.2 插件
+### 19.2 Shared Protocol
+
+必须包含可独立执行的 JVM 单元测试。
+
+```bash
+./gradlew :protocol:test
+```
+
+### 19.3 插件
 
 必须包含完整 IntelliJ Platform 插件工程、可构建插件 ZIP、README、安装步骤、ADB 配置说明、Tool Window 使用说明、已知限制和单元测试。
 
