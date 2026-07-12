@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -23,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
+import com.ericdevwang.androidinputbridge.R
 import com.ericdevwang.androidinputbridge.repository.DefaultTextRepository
 import com.ericdevwang.androidinputbridge.theme.AndroidInputBridgeTheme
 
@@ -56,7 +58,7 @@ private fun MainScreenContent(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text = "Android Input Bridge")
+        Text(text = stringResource(R.string.input_bridge_title))
 
         OutlinedTextField(
             value = uiState.text,
@@ -74,11 +76,11 @@ private fun MainScreenContent(
         )
 
         Text(
-            text = "Characters: ${uiState.characterCount}",
+            text = stringResource(R.string.characters_count, uiState.characterCount),
             modifier = Modifier.testTag("character_count"),
         )
         Text(
-            text = "Version: ${uiState.version}",
+            text = stringResource(R.string.version_format, uiState.version),
             modifier = Modifier.testTag("version_text"),
         )
 
@@ -94,7 +96,7 @@ private fun MainScreenContent(
             enabled = !uiState.isLoading,
             modifier = Modifier.testTag("clear_button"),
         ) {
-            Text(text = "Clear")
+            Text(text = stringResource(R.string.clear))
         }
     }
 }

@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">Android Input Bridge</string>
+    <string name="input_bridge_title">Android Input Bridge</string>
+    <string name="characters_count">Characters: %1$d</string>
+    <string name="version_format">Version: %1$d</string>
+    <string name="clear">Clear</string>
+    <string name="persistence_error">Text could not be saved.</string>
 </resources>

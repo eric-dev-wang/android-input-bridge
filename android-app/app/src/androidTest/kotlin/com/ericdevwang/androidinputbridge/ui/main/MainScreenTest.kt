@@ -61,14 +61,16 @@ class MainScreenTest {
         setScreen(FakeTextRepository(TextState("", 0L, 1L)))
 
         composeTestRule.onNodeWithTag(CLEAR_BUTTON).assertIsEnabled()
+        composeTestRule.onNodeWithTag(CLEAR_BUTTON).performClick()
+        composeTestRule.onNodeWithTag(VERSION_TEXT).assertTextEquals("Version: 0")
     }
 
     @Test
     fun rejectedOverLimitEditRestoresPreviousText() {
-        val viewModel = MainScreenViewModel(FakeTextRepository(TextState("keep", 1L, 1L)))
-        setScreen(viewModel)
+        setScreen(FakeTextRepository(TextState("keep", 1L, 1L)))
 
-        viewModel.onTextChanged("a".repeat(MAX_TEXT_CODE_POINTS + 1))
+        composeTestRule.onNodeWithTag(INPUT_TEXT)
+            .performTextInput("a".repeat(MAX_TEXT_CODE_POINTS + 1))
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithTag(INPUT_TEXT).assertTextEquals("keep")
