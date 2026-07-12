@@ -18,6 +18,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,7 +31,7 @@ class DefaultTextRepositoryTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun initializeRestoresTextVersionAndTimestamp() = runTest {
+    fun stateFlowRestoresTextVersionAndTimestamp() = runTest {
         val file = testFile()
         val firstScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val firstStore = PreferenceDataStoreFactory.create(
@@ -39,7 +40,6 @@ class DefaultTextRepositoryTest {
         )
         val first = DefaultTextRepository(firstStore) { 100L }
 
-        first.initialize()
         first.changeText("hello")
         advanceUntilIdle()
         firstScope.cancel()
@@ -50,10 +50,9 @@ class DefaultTextRepositoryTest {
             produceFile = { file },
         )
         val second = DefaultTextRepository(secondStore) { 200L }
-        second.initialize()
-        secondScope.cancel()
 
-        assertEquals(TextState("hello", 1L, 101L), second.state.value)
+        assertEquals(TextState("hello", 1L, 100L), second.state.first())
+        secondScope.cancel()
     }
 
     @Test
@@ -65,16 +64,14 @@ class DefaultTextRepositoryTest {
         )
         val repository = DefaultTextRepository(store) { 100L }
 
-        repository.initialize()
         val result = repository.changeText("😀".repeat(MAX_TEXT_CODE_POINTS + 1))
         advanceUntilIdle()
 
         assertEquals(TextChangeResult.RejectedTooLong, result)
-        assertEquals(TextState("", 0L, 100L), repository.state.value)
+        assertEquals(TextState("", 0L, 0L), repository.state.first())
 
         val restored = DefaultTextRepository(store) { 200L }
-        restored.initialize()
-        assertEquals(TextState("", 0L, 100L), restored.state.value)
+        assertEquals(TextState("", 0L, 0L), restored.state.first())
     }
 
     @Test
@@ -82,7 +79,6 @@ class DefaultTextRepositoryTest {
         val store = FailingDataStore()
         val repository = DefaultTextRepository(store) { 100L }
 
-        repository.initialize()
         store.failWrites = true
 
         try {
@@ -91,7 +87,7 @@ class DefaultTextRepositoryTest {
         } catch (_: IOException) {
             // Expected: the in-memory state must remain updated.
         }
-        assertEquals(TextState("keep", 1L, 101L), repository.state.value)
+        assertEquals(TextState("", 0L, 0L), repository.state.first())
     }
 
     private fun testFile(): File =

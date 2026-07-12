@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,9 +30,11 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
-    viewModel: MainScreenViewModel = koinViewModel(),
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val viewModel: MainScreenViewModel = koinViewModel()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle(
+        initialValue = MainScreenUiState(),
+    )
 
     MainScreenContent(
         uiState = uiState,
@@ -42,14 +45,14 @@ fun MainScreen(
 }
 
 @Composable
-private fun MainScreenContent(
+fun MainScreenContent(
     uiState: MainScreenUiState,
     onTextChanged: (String) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.safeDrawingPadding().padding(16.dp).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(text = stringResource(R.string.input_bridge_title))
