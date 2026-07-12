@@ -98,7 +98,10 @@ Android Studio 插件：
 ```bash
 ./gradlew -PandroidStudioPath="$HOME/Applications/Android Studio.app" :android-studio-plugin:test
 ./gradlew -PandroidStudioPath="$HOME/Applications/Android Studio.app" :android-studio-plugin:buildPlugin
+./gradlew -PandroidStudioPath="$HOME/Applications/Android Studio.app" :android-studio-plugin:verifyPlugin
 ```
+
+`androidStudioPath` also selects the IDE used by `verifyPlugin`; without it, the verifier uses the current Gradle target instead of an automatically recommended release.
 
 插件 ZIP 预期位于：
 

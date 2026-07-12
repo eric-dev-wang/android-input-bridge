@@ -10,11 +10,12 @@ kotlin {
     jvmToolchain(21)
 }
 
+val localAndroidStudioPath = providers.gradleProperty("androidStudioPath")
+
 dependencies {
     implementation(project(":protocol"))
 
     intellijPlatform {
-        val localAndroidStudioPath = providers.gradleProperty("androidStudioPath")
         if (localAndroidStudioPath.isPresent) {
             local(localAndroidStudioPath.get())
             bundledPlugin("org.jetbrains.android")
@@ -33,6 +34,16 @@ intellijPlatform {
         ideaVersion {
             sinceBuild = "261"
             untilBuild = "261.*"
+        }
+    }
+
+    pluginVerification {
+        ides {
+            if (localAndroidStudioPath.isPresent) {
+                local(file(localAndroidStudioPath.get()))
+            } else {
+                current()
+            }
         }
     }
 }
