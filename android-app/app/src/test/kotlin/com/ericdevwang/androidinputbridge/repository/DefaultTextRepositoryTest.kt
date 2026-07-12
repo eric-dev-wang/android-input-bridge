@@ -90,6 +90,78 @@ class DefaultTextRepositoryTest {
         )
         repositoryScope.cancel()
     }
+
+    @Test
+    fun staleSaveIsSupersededByVersionAwareDataSource() = runTest {
+        val dataSource = FakeTextDataSource(TextState("current", 2L, 2L))
+        val repositoryScope = CoroutineScope(
+            SupervisorJob() + UnconfinedTestDispatcher(testScheduler),
+        )
+        val repository = DefaultTextRepository(dataSource, repositoryScope)
+
+        assertEquals(
+            PersistenceResult.Superseded(1L),
+            repository.save(TextState("stale", 1L, 1L)),
+        )
+        assertEquals(TextState("current", 2L, 2L), dataSource.currentState)
+        repositoryScope.cancel()
+    }
+
+    @Test
+    fun clearReturnsClearedVersionAndNewVersion() = runTest {
+        val dataSource = FakeTextDataSource(TextState("keep", 1L, 1L))
+        val repositoryScope = CoroutineScope(
+            SupervisorJob() + UnconfinedTestDispatcher(testScheduler),
+        )
+        val repository = DefaultTextRepository(dataSource, repositoryScope, clock = { 2L })
+
+        assertEquals(
+            ClearResult.Cleared(clearedVersion = 1L, newVersion = 2L),
+            repository.clear(expectedVersion = 1L),
+        )
+        assertEquals(TextState("", 2L, 2L), dataSource.currentState)
+        repositoryScope.cancel()
+    }
+
+    @Test
+    fun staleClearReturnsVersionConflict() = runTest {
+        val dataSource = FakeTextDataSource(TextState("current", 2L, 2L))
+        val repositoryScope = CoroutineScope(
+            SupervisorJob() + UnconfinedTestDispatcher(testScheduler),
+        )
+        val repository = DefaultTextRepository(dataSource, repositoryScope)
+
+        assertEquals(
+            ClearResult.VersionConflict(currentVersion = 2L),
+            repository.clear(expectedVersion = 1L),
+        )
+        assertEquals(TextState("current", 2L, 2L), dataSource.currentState)
+        repositoryScope.cancel()
+    }
+
+    @Test
+    fun pendingSaveIsAppliedBeforeClearAndCannotResurrectContent() = runTest {
+        val dataSource = FakeTextDataSource(TextState("keep", 1L, 1L))
+        val writeGate = CompletableDeferred<Unit>()
+        dataSource.writeGate = writeGate
+        val repositoryScope = CoroutineScope(
+            SupervisorJob() + UnconfinedTestDispatcher(testScheduler),
+        )
+        val repository = DefaultTextRepository(dataSource, repositoryScope, clock = { 3L })
+        val save = async { repository.save(TextState("pending", 2L, 2L)) }
+        runCurrent()
+        val clear = async { repository.clear(expectedVersion = 2L) }
+        runCurrent()
+
+        assertFalse(clear.isCompleted)
+        writeGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(PersistenceResult.Succeeded(2L), save.await())
+        assertEquals(ClearResult.Cleared(clearedVersion = 2L, newVersion = 3L), clear.await())
+        assertEquals(TextState("", 3L, 3L), dataSource.currentState)
+        repositoryScope.cancel()
+    }
 }
 
 private class FakeTextDataSource(initialState: TextState) : TextDataSource {
@@ -97,23 +169,47 @@ private class FakeTextDataSource(initialState: TextState) : TextDataSource {
 
     var writeGate: CompletableDeferred<Unit>? = null
     val persisted = mutableListOf<TextState>()
+    val currentState: TextState
+        get() = mutableState.value
 
     override val state: Flow<TextState> = mutableState
 
-    override suspend fun persist(state: TextState) {
+    override suspend fun saveIfNewer(state: TextState): Boolean {
         writeGate?.let { gate ->
             writeGate = null
             gate.await()
         }
+        if (state.version <= mutableState.value.version) return false
         persisted += state
         mutableState.value = state
+        return true
+    }
+
+    override suspend fun clearIfVersion(expectedVersion: Long, nowMillis: Long): ClearResult {
+        val current = mutableState.value
+        if (current.version != expectedVersion) {
+            return ClearResult.VersionConflict(current.version)
+        }
+        val cleared = current.clear(nowMillis)
+        if (cleared != current) {
+            persisted += cleared
+            mutableState.value = cleared
+        }
+        return ClearResult.Cleared(
+            clearedVersion = current.version,
+            newVersion = cleared.version,
+        )
     }
 }
 
 private class FailingTextDataSource : TextDataSource {
     override val state: Flow<TextState> = MutableStateFlow(TextState("", 0L, 0L))
 
-    override suspend fun persist(state: TextState) {
+    override suspend fun saveIfNewer(state: TextState): Boolean {
+        error("write failed")
+    }
+
+    override suspend fun clearIfVersion(expectedVersion: Long, nowMillis: Long): ClearResult {
         error("write failed")
     }
 }

@@ -6,12 +6,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ericdevwang.androidinputbridge.model.TextChangeResult
 import com.ericdevwang.androidinputbridge.model.TextState
+import com.ericdevwang.androidinputbridge.repository.ClearResult
 import com.ericdevwang.androidinputbridge.repository.PersistenceResult
 import com.ericdevwang.androidinputbridge.repository.TextRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainScreenViewModel(
@@ -51,10 +53,11 @@ class MainScreenViewModel(
 
     fun onClear() {
         val currentContent = mutableUiState.value as? MainScreenUiState.Content ?: return
+        val expectedVersion = currentTextState.version
         val cleared = currentTextState.clear(clock())
         if (cleared == currentTextState) {
             mutableUiState.value = currentContent.copy(
-                textFieldValue = TextFieldValue("")
+                textFieldValue = TextFieldValue(""),
             )
             return
         }
@@ -65,23 +68,24 @@ class MainScreenViewModel(
             textFieldValue = clearedValue,
             persistenceMessage = currentContent.persistenceMessage,
         )
-        persistSnapshot(cleared)
+        persistClear(expectedVersion, cleared)
     }
 
     private suspend fun observeRepositoryState() {
         try {
             repository.state.collect { persistedState ->
                 val isLoading = mutableUiState.value is MainScreenUiState.Loading
-                if (!isLoading && persistedState.version <= currentTextState.version) return@collect
+                if (!isLoading && persistedState.version < currentTextState.version) return@collect
+                if (!isLoading &&
+                    persistedState.version == currentTextState.version &&
+                    persistedState.text == currentTextState.text
+                ) {
+                    return@collect
+                }
 
-                currentTextState = persistedState
-                val value = TextFieldValue(
-                    text = persistedState.text,
-                    selection = TextRange(persistedState.text.length),
-                )
                 val currentContent = mutableUiState.value as? MainScreenUiState.Content
-                mutableUiState.value = persistedState.toContent(
-                    textFieldValue = value,
+                showPersistedState(
+                    persistedState = persistedState,
                     persistenceMessage = currentContent?.persistenceMessage,
                 )
             }
@@ -89,6 +93,56 @@ class MainScreenViewModel(
             if (error is CancellationException) throw error
             mutableUiState.value = MainScreenUiState.InitializationError
         }
+    }
+
+    private fun persistClear(expectedVersion: Long, localClearedState: TextState) {
+        viewModelScope.launch {
+            try {
+                when (val result = repository.clear(expectedVersion)) {
+                    is ClearResult.Cleared -> {
+                        if (currentTextState.version == localClearedState.version) {
+                            updateContent { it.copy(persistenceMessage = null) }
+                        }
+                    }
+
+                    is ClearResult.VersionConflict -> reconcileClearConflict(localClearedState)
+                }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                if (currentTextState.version == localClearedState.version) {
+                    updateContent { it.copy(persistenceMessage = PersistenceMessage.SaveFailed) }
+                }
+            }
+        }
+    }
+
+    private suspend fun reconcileClearConflict(localClearedState: TextState) {
+        try {
+            val persistedState = repository.state.first()
+            if (currentTextState.version == localClearedState.version) {
+                showPersistedState(persistedState, persistenceMessage = null)
+            }
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            if (currentTextState.version == localClearedState.version) {
+                updateContent { it.copy(persistenceMessage = PersistenceMessage.SaveFailed) }
+            }
+        }
+    }
+
+    private fun showPersistedState(
+        persistedState: TextState,
+        persistenceMessage: PersistenceMessage?,
+    ) {
+        currentTextState = persistedState
+        val value = TextFieldValue(
+            text = persistedState.text,
+            selection = TextRange(persistedState.text.length),
+        )
+        mutableUiState.value = persistedState.toContent(
+            textFieldValue = value,
+            persistenceMessage = persistenceMessage,
+        )
     }
 
     private fun persistSnapshot(state: TextState) {

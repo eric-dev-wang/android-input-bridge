@@ -24,10 +24,34 @@ class DataStoreTextDataSource(
             .map { preferences -> preferences.toTextState() }
             .distinctUntilChanged()
 
-    override suspend fun persist(state: TextState) {
+    override suspend fun saveIfNewer(state: TextState): Boolean {
+        var saved = false
         dataStore.edit { preferences ->
-            state.writeTo(preferences)
+            if (state.version > (preferences[VERSION_KEY] ?: 0L)) {
+                state.writeTo(preferences)
+                saved = true
+            }
         }
+        return saved
+    }
+
+    override suspend fun clearIfVersion(expectedVersion: Long, nowMillis: Long): ClearResult {
+        var result: ClearResult? = null
+        dataStore.edit { preferences ->
+            val current = preferences.toTextState()
+            if (current.version != expectedVersion) {
+                result = ClearResult.VersionConflict(current.version)
+                return@edit
+            }
+
+            val cleared = current.clear(nowMillis)
+            if (cleared != current) cleared.writeTo(preferences)
+            result = ClearResult.Cleared(
+                clearedVersion = current.version,
+                newVersion = cleared.version,
+            )
+        }
+        return checkNotNull(result)
     }
 }
 
