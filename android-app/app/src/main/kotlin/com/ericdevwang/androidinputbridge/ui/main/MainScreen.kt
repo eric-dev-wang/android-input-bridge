@@ -32,9 +32,7 @@ fun MainScreen(
     modifier: Modifier = Modifier,
 ) {
     val viewModel: MainScreenViewModel = koinViewModel()
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle(
-        initialValue = MainScreenUiState(),
-    )
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     MainScreenContent(
         uiState = uiState,
@@ -51,6 +49,41 @@ fun MainScreenContent(
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val text: String
+    val version: Long
+    val characterCount: Int
+    val isLoading: Boolean
+    val isEnabled: Boolean
+    val persistenceMessage: PersistenceMessage?
+    when (uiState) {
+        MainScreenUiState.Loading -> {
+            text = ""
+            version = 0L
+            characterCount = 0
+            isLoading = true
+            isEnabled = false
+            persistenceMessage = null
+        }
+
+        is MainScreenUiState.Content -> {
+            text = uiState.text
+            version = uiState.version
+            characterCount = uiState.characterCount
+            isLoading = false
+            isEnabled = true
+            persistenceMessage = uiState.persistenceMessage
+        }
+
+        MainScreenUiState.InitializationError -> {
+            text = ""
+            version = 0L
+            characterCount = 0
+            isLoading = false
+            isEnabled = false
+            persistenceMessage = PersistenceMessage.InitializationFailed
+        }
+    }
+
     Column(
         modifier = modifier.safeDrawingPadding().padding(16.dp).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -58,9 +91,9 @@ fun MainScreenContent(
         Text(text = stringResource(R.string.input_bridge_title))
 
         OutlinedTextField(
-            value = uiState.text,
+            value = text,
             onValueChange = onTextChanged,
-            enabled = !uiState.isLoading,
+            enabled = isEnabled,
             modifier = Modifier.fillMaxWidth().testTag("input_text"),
             minLines = 8,
             maxLines = 16,
@@ -73,17 +106,17 @@ fun MainScreenContent(
         )
 
         Text(
-            text = stringResource(R.string.characters_count, uiState.characterCount),
+            text = stringResource(R.string.characters_count, characterCount),
             modifier = Modifier.testTag("character_count"),
         )
         Text(
-            text = stringResource(R.string.version_format, uiState.version),
+            text = stringResource(R.string.version_format, version),
             modifier = Modifier.testTag("version_text"),
         )
 
-        if (uiState.isLoading) CircularProgressIndicator()
+        if (isLoading) CircularProgressIndicator()
 
-        uiState.persistenceMessage?.let { message ->
+        persistenceMessage?.let { message ->
             val messageRes = when (message) {
                 PersistenceMessage.InitializationFailed -> R.string.initialization_error
                 PersistenceMessage.SaveFailed -> R.string.persistence_error
@@ -97,7 +130,7 @@ fun MainScreenContent(
         Spacer(modifier = Modifier.height(4.dp))
         Button(
             onClick = onClear,
-            enabled = !uiState.isLoading,
+            enabled = isEnabled,
             modifier = Modifier.testTag("clear_button"),
         ) {
             Text(text = stringResource(R.string.clear))
@@ -110,7 +143,11 @@ fun MainScreenContent(
 private fun MainScreenPreview() {
     AndroidInputBridgeTheme {
         MainScreenContent(
-            uiState = MainScreenUiState(isLoading = false),
+            uiState = MainScreenUiState.Content(
+                text = "",
+                version = 0L,
+                characterCount = 0,
+            ),
             onTextChanged = {},
             onClear = {},
             modifier = Modifier.padding(16.dp),

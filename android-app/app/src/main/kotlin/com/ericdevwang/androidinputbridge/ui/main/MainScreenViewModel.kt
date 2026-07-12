@@ -6,10 +6,12 @@ import com.ericdevwang.androidinputbridge.model.TextChangeResult
 import com.ericdevwang.androidinputbridge.model.TextState
 import com.ericdevwang.androidinputbridge.repository.TextRepository
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -20,18 +22,19 @@ class MainScreenViewModel(
     private val mutationMutex = Mutex()
     private val persistenceMessage = MutableStateFlow<PersistenceMessage?>(null)
 
-    val uiState: Flow<MainScreenUiState> =
+    val uiState: StateFlow<MainScreenUiState> =
         combine(repository.state, persistenceMessage) { state, message ->
-            state.toUiState(persistenceMessage = message)
+            state.toUiState(message)
         }.catch { error ->
             if (error is CancellationException) throw error
             emit(
-                MainScreenUiState(
-                    isLoading = false,
-                    persistenceMessage = PersistenceMessage.InitializationFailed,
-                ),
+                MainScreenUiState.InitializationError,
             )
-        }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = MainScreenUiState.Loading,
+        )
 
     fun onTextChanged(newText: String) {
         launchMutation {
@@ -68,17 +71,21 @@ enum class PersistenceMessage {
     SaveFailed,
 }
 
-data class MainScreenUiState(
-    val isLoading: Boolean = true,
-    val text: String = "",
-    val version: Long = 0L,
-    val characterCount: Int = 0,
-    val persistenceMessage: PersistenceMessage? = null,
-)
+sealed interface MainScreenUiState {
+    data object Loading : MainScreenUiState
 
-private fun TextState.toUiState(persistenceMessage: PersistenceMessage? = null): MainScreenUiState =
-    MainScreenUiState(
-        isLoading = false,
+    data class Content(
+        val text: String,
+        val version: Long,
+        val characterCount: Int,
+        val persistenceMessage: PersistenceMessage? = null,
+    ) : MainScreenUiState
+
+    data object InitializationError : MainScreenUiState
+}
+
+private fun TextState.toUiState(persistenceMessage: PersistenceMessage?): MainScreenUiState =
+    MainScreenUiState.Content(
         text = text,
         version = version,
         characterCount = text.codePointCount(0, text.length),

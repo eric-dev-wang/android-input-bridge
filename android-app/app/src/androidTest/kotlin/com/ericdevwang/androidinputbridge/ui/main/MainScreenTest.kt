@@ -47,7 +47,7 @@ class MainScreenTest {
 
     @Test
     fun loadingDisablesInputAndClearButton() {
-        setStaticScreen(MainScreenUiState())
+        setStaticScreen(MainScreenUiState.Loading)
 
         composeTestRule.onNodeWithTag(INPUT_TEXT).assertIsNotEnabled()
         composeTestRule.onNodeWithTag(CLEAR_BUTTON).assertIsNotEnabled()
@@ -144,8 +144,7 @@ class MainScreenTest {
 
 private fun TextState.toUiState(
     persistenceMessage: PersistenceMessage?,
-) = MainScreenUiState(
-    isLoading = false,
+) = MainScreenUiState.Content(
     text = text,
     version = version,
     characterCount = text.codePointCount(0, text.length),

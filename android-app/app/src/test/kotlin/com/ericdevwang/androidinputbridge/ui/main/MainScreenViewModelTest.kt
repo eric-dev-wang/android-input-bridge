@@ -10,7 +10,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -21,7 +20,6 @@ import kotlinx.coroutines.test.resetMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -45,27 +43,21 @@ class MainScreenViewModelTest {
         val viewModel = MainScreenViewModel(repository)
 
         assertEquals(
-            MainScreenUiState(
-                isLoading = false,
+            MainScreenUiState.Content(
                 text = "saved",
                 version = 1L,
                 characterCount = 5,
             ),
-            viewModel.uiState.first(),
+            viewModel.uiState.value,
         )
     }
 
     @Test
     fun stateFlowFailureShowsEmptyRecoveryState() = runTest {
         val viewModel = MainScreenViewModel(FailingTextRepository())
+        advanceUntilIdle()
 
-        val state = viewModel.uiState.first()
-
-        assertEquals("", state.text)
-        assertEquals(0L, state.version)
-        assertEquals(0, state.characterCount)
-        assertTrue(!state.isLoading)
-        assertEquals(PersistenceMessage.InitializationFailed, state.persistenceMessage)
+        assertEquals(MainScreenUiState.InitializationError, viewModel.uiState.value)
     }
 
     @Test
@@ -76,8 +68,9 @@ class MainScreenViewModelTest {
         viewModel.onTextChanged("a".repeat(MAX_TEXT_CODE_POINTS + 1))
         advanceUntilIdle()
 
-        assertEquals("keep", viewModel.uiState.first().text)
-        assertNull(viewModel.uiState.first().persistenceMessage)
+        val state = viewModel.contentState()
+        assertEquals("keep", state.text)
+        assertNull(state.persistenceMessage)
     }
 
     @Test
@@ -88,7 +81,7 @@ class MainScreenViewModelTest {
         viewModel.onTextChanged("A😀")
         advanceUntilIdle()
 
-        val state = viewModel.uiState.first()
+        val state = viewModel.contentState()
         assertEquals("A😀", state.text)
         assertEquals(1L, state.version)
         assertEquals(2, state.characterCount)
@@ -104,7 +97,7 @@ class MainScreenViewModelTest {
         viewModel.onTextChanged("updated")
         advanceUntilIdle()
 
-        val state = viewModel.uiState.first()
+        val state = viewModel.contentState()
         assertEquals("keep", state.text)
         assertEquals(1L, state.version)
         assertEquals(PersistenceMessage.SaveFailed, state.persistenceMessage)
@@ -121,7 +114,7 @@ class MainScreenViewModelTest {
         viewModel.onTextChanged("second")
         advanceUntilIdle()
 
-        val state = viewModel.uiState.first()
+        val state = viewModel.contentState()
         assertEquals("second", state.text)
         assertNull(state.persistenceMessage)
     }
@@ -134,7 +127,7 @@ class MainScreenViewModelTest {
         viewModel.onClear()
         advanceUntilIdle()
 
-        val state = viewModel.uiState.first()
+        val state = viewModel.contentState()
         assertEquals("", state.text)
         assertEquals(2L, state.version)
         assertEquals(listOf(Mutation.Clear), repository.mutations)
@@ -151,7 +144,7 @@ class MainScreenViewModelTest {
         viewModel.onClear()
         advanceUntilIdle()
 
-        val state = viewModel.uiState.first()
+        val state = viewModel.contentState()
         assertEquals("", state.text)
         assertNull(state.persistenceMessage)
     }
@@ -181,9 +174,12 @@ class MainScreenViewModelTest {
         secondMutationGate.complete(Unit)
         advanceUntilIdle()
 
-        assertEquals("second", viewModel.uiState.first().text)
+        assertEquals("second", viewModel.contentState().text)
     }
 }
+
+private fun MainScreenViewModel.contentState(): MainScreenUiState.Content =
+    uiState.value as MainScreenUiState.Content
 
 private class FailingTextRepository : TextRepository {
     override val state: Flow<TextState> = flow {
