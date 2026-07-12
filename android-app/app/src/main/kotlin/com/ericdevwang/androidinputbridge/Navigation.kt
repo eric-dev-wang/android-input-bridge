@@ -8,11 +8,10 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
-import com.ericdevwang.androidinputbridge.repository.TextRepository
 import com.ericdevwang.androidinputbridge.ui.main.MainScreen
 
 @Composable
-fun MainNavigation(repository: TextRepository) {
+fun MainNavigation() {
   val backStack = rememberNavBackStack(Main)
 
   NavDisplay(
@@ -21,7 +20,7 @@ fun MainNavigation(repository: TextRepository) {
     entryProvider =
       entryProvider {
         entry<Main> {
-          MainScreen(repository = repository, modifier = Modifier.safeDrawingPadding().padding(16.dp))
+          MainScreen(modifier = Modifier.safeDrawingPadding().padding(16.dp))
         }
       },
   )

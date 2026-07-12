@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.ericdevwang.androidinputbridge.repository.DefaultTextRepository
 import com.ericdevwang.androidinputbridge.theme.AndroidInputBridgeTheme
 
 class MainActivity : ComponentActivity() {
@@ -16,11 +15,10 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
 
     enableEdgeToEdge()
-    val repository = DefaultTextRepository(applicationContext)
     setContent {
       AndroidInputBridgeTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-          MainNavigation(repository)
+          MainNavigation()
         }
       }
     }

@@ -47,6 +47,7 @@ dependencies {
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)
+  implementation(platform(libs.koin.bom))
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)
@@ -57,6 +58,8 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.datastore.preferences)
+  implementation(libs.koin.android)
+  implementation(libs.koin.androidx.compose)
 
   // Compose
   implementation(libs.androidx.compose.ui)

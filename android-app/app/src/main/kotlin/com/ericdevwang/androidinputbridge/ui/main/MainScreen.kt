@@ -14,7 +14,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -23,28 +22,21 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 import com.ericdevwang.androidinputbridge.R
-import com.ericdevwang.androidinputbridge.repository.DefaultTextRepository
-import com.ericdevwang.androidinputbridge.repository.TextRepository
 import com.ericdevwang.androidinputbridge.theme.AndroidInputBridgeTheme
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
-    repository: TextRepository? = null,
-    viewModel: MainScreenViewModel? = null,
+    viewModel: MainScreenViewModel = koinViewModel(),
 ) {
-    val context = LocalContext.current
-    val mainScreenViewModel = viewModel ?: composeViewModel {
-        MainScreenViewModel(repository ?: DefaultTextRepository(context.applicationContext))
-    }
-    val uiState by mainScreenViewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     MainScreenContent(
         uiState = uiState,
-        onTextChanged = mainScreenViewModel::onTextChanged,
-        onClear = mainScreenViewModel::onClear,
+        onTextChanged = viewModel::onTextChanged,
+        onClear = viewModel::onClear,
         modifier = modifier,
     )
 }
