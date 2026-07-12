@@ -1,10 +1,11 @@
 package com.ericdevwang.androidinputbridge.repository
 
 import android.content.Context
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.test.core.app.ApplicationProvider
-import com.ericdevwang.androidinputbridge.model.MAX_TEXT_CODE_POINTS
-import com.ericdevwang.androidinputbridge.model.TextChangeResult
 import com.ericdevwang.androidinputbridge.model.TextState
 import java.io.File
 import java.io.IOException
@@ -13,15 +14,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.emptyPreferences
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.junit.Test
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.fail
@@ -31,16 +29,27 @@ class DefaultTextRepositoryTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun stateFlowRestoresTextVersionAndTimestamp() = runTest {
+    fun emptyDataStoreEmitsDefaultTextState() = runTest {
+        val store = PreferenceDataStoreFactory.create(
+            scope = backgroundScope,
+            produceFile = ::testFile,
+        )
+        val repository = DefaultTextRepository(store)
+
+        assertEquals(TextState("", 0L, 0L), repository.state.first())
+    }
+
+    @Test
+    fun stateFlowRestoresPersistedTextVersionAndTimestamp() = runTest {
         val file = testFile()
         val firstScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val firstStore = PreferenceDataStoreFactory.create(
             scope = firstScope,
             produceFile = { file },
         )
-        val first = DefaultTextRepository(firstStore) { 100L }
+        val first = DefaultTextRepository(firstStore)
 
-        first.changeText("hello")
+        first.persist(TextState("hello", 1L, 100L))
         advanceUntilIdle()
         firstScope.cancel()
 
@@ -49,44 +58,25 @@ class DefaultTextRepositoryTest {
             scope = secondScope,
             produceFile = { file },
         )
-        val second = DefaultTextRepository(secondStore) { 200L }
+        val second = DefaultTextRepository(secondStore)
 
         assertEquals(TextState("hello", 1L, 100L), second.state.first())
         secondScope.cancel()
     }
 
     @Test
-    fun overLimitTextDoesNotChangePersistedState() = runTest {
-        val file = testFile()
-        val store = PreferenceDataStoreFactory.create(
-            scope = backgroundScope,
-            produceFile = { file },
-        )
-        val repository = DefaultTextRepository(store) { 100L }
-
-        val result = repository.changeText("😀".repeat(MAX_TEXT_CODE_POINTS + 1))
-        advanceUntilIdle()
-
-        assertEquals(TextChangeResult.RejectedTooLong, result)
-        assertEquals(TextState("", 0L, 0L), repository.state.first())
-
-        val restored = DefaultTextRepository(store) { 200L }
-        assertEquals(TextState("", 0L, 0L), restored.state.first())
-    }
-
-    @Test
-    fun writeFailurePreservesInMemoryState() = runTest {
+    fun writeFailureDoesNotChangePersistedState() = runTest {
         val store = FailingDataStore()
-        val repository = DefaultTextRepository(store) { 100L }
-
+        val repository = DefaultTextRepository(store)
         store.failWrites = true
 
         try {
-            repository.changeText("keep")
+            repository.persist(TextState("keep", 1L, 100L))
             fail("Expected persistence failure")
         } catch (_: IOException) {
-            // Expected: the in-memory state must remain updated.
+            // Expected: the durable state must remain unchanged.
         }
+
         assertEquals(TextState("", 0L, 0L), repository.state.first())
     }
 

@@ -1,7 +1,8 @@
 package com.ericdevwang.androidinputbridge.ui.main
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import com.ericdevwang.androidinputbridge.model.MAX_TEXT_CODE_POINTS
-import com.ericdevwang.androidinputbridge.model.TextChangeResult
 import com.ericdevwang.androidinputbridge.model.TextState
 import com.ericdevwang.androidinputbridge.repository.TextRepository
 import java.io.IOException
@@ -13,13 +14,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -39,22 +40,45 @@ class MainScreenViewModelTest {
 
     @Test
     fun stateFlowLoadsSavedStateWithoutExplicitInitialization() = runTest {
-        val repository = FakeTextRepository(TextState("saved", 1L, 1L))
-        val viewModel = MainScreenViewModel(repository)
+        val viewModel = MainScreenViewModel(FakeTextRepository(TextState("saved", 1L, 1L)))
+
+        advanceUntilIdle()
 
         assertEquals(
             MainScreenUiState.Content(
-                text = "saved",
+                textFieldValue = TextFieldValue("saved", selection = TextRange(5)),
                 version = 1L,
                 characterCount = 5,
             ),
-            viewModel.uiState.value,
+            viewModel.contentState(),
         )
     }
 
     @Test
-    fun stateFlowFailureShowsEmptyRecoveryState() = runTest {
+    fun inputStateUpdatesBeforePersistenceCompletes() = runTest {
+        val repository = FakeTextRepository(TextState("", 0L, 1L))
+        val persistGate = CompletableDeferred<Unit>()
+        repository.persistGate = persistGate
+        val viewModel = MainScreenViewModel(repository, clock = { 2L })
+        advanceUntilIdle()
+
+        viewModel.onTextChanged(TextFieldValue("fast", selection = TextRange(4)))
+
+        val stateBeforePersistence = viewModel.contentState()
+        assertEquals("fast", stateBeforePersistence.textFieldValue.text)
+        assertEquals(TextRange(4), stateBeforePersistence.textFieldValue.selection)
+        assertTrue(repository.persisted.isEmpty())
+
+        persistGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(TextState("fast", 1L, 2L), repository.persisted.last())
+    }
+
+    @Test
+    fun stateFlowFailureShowsInitializationError() = runTest {
         val viewModel = MainScreenViewModel(FailingTextRepository())
+
         advanceUntilIdle()
 
         assertEquals(MainScreenUiState.InitializationError, viewModel.uiState.value)
@@ -62,119 +86,78 @@ class MainScreenViewModelTest {
 
     @Test
     fun rejectedOverLimitInputKeepsPreviousText() = runTest {
-        val repository = FakeTextRepository(TextState("keep", 1L, 1L))
-        val viewModel = MainScreenViewModel(repository)
-
-        viewModel.onTextChanged("a".repeat(MAX_TEXT_CODE_POINTS + 1))
+        val viewModel = MainScreenViewModel(FakeTextRepository(TextState("keep", 1L, 1L)))
         advanceUntilIdle()
 
+        viewModel.onTextChanged(TextFieldValue("a".repeat(MAX_TEXT_CODE_POINTS + 1)))
+
         val state = viewModel.contentState()
-        assertEquals("keep", state.text)
+        assertEquals("keep", state.textFieldValue.text)
         assertNull(state.persistenceMessage)
     }
 
     @Test
     fun acceptedInputMirrorsStateAndCountsUnicodeCodePoints() = runTest {
-        val repository = FakeTextRepository(TextState("", 0L, 1L))
-        val viewModel = MainScreenViewModel(repository)
+        val viewModel = MainScreenViewModel(FakeTextRepository(TextState("", 0L, 1L)))
+        advanceUntilIdle()
 
-        viewModel.onTextChanged("A😀")
+        viewModel.onTextChanged(TextFieldValue("A😀", selection = TextRange(3)))
         advanceUntilIdle()
 
         val state = viewModel.contentState()
-        assertEquals("A😀", state.text)
+        assertEquals("A😀", state.textFieldValue.text)
+        assertEquals(TextRange(3), state.textFieldValue.selection)
         assertEquals(1L, state.version)
         assertEquals(2, state.characterCount)
         assertNull(state.persistenceMessage)
     }
 
     @Test
-    fun writeFailureKeepsPersistedTextAndShowsPersistenceMessage() = runTest {
+    fun writeFailureKeepsInMemoryTextAndShowsPersistenceMessage() = runTest {
         val repository = FakeTextRepository(TextState("keep", 1L, 1L))
-        val viewModel = MainScreenViewModel(repository)
-        repository.nextMutationFailure = IOException("write failed")
+        repository.nextPersistenceFailure = IOException("write failed")
+        val viewModel = MainScreenViewModel(repository, clock = { 2L })
+        advanceUntilIdle()
 
-        viewModel.onTextChanged("updated")
+        viewModel.onTextChanged(TextFieldValue("updated", selection = TextRange(7)))
         advanceUntilIdle()
 
         val state = viewModel.contentState()
-        assertEquals("keep", state.text)
-        assertEquals(1L, state.version)
+        assertEquals("updated", state.textFieldValue.text)
+        assertEquals(2L, state.version)
         assertEquals(PersistenceMessage.SaveFailed, state.persistenceMessage)
     }
 
     @Test
     fun laterSuccessfulMutationClearsPersistenceMessage() = runTest {
         val repository = FakeTextRepository(TextState("", 0L, 1L))
-        val viewModel = MainScreenViewModel(repository)
-        repository.nextMutationFailure = IOException("write failed")
-
-        viewModel.onTextChanged("first")
+        repository.nextPersistenceFailure = IOException("write failed")
+        val viewModel = MainScreenViewModel(repository, clock = { 2L })
         advanceUntilIdle()
-        viewModel.onTextChanged("second")
+
+        viewModel.onTextChanged(TextFieldValue("first", selection = TextRange(5)))
+        advanceUntilIdle()
+        viewModel.onTextChanged(TextFieldValue("second", selection = TextRange(6)))
         advanceUntilIdle()
 
         val state = viewModel.contentState()
-        assertEquals("second", state.text)
+        assertEquals("second", state.textFieldValue.text)
         assertNull(state.persistenceMessage)
     }
 
     @Test
-    fun clearEmptiesTextAndRecordsClearMutation() = runTest {
+    fun clearUpdatesMemoryAndQueuesEmptySnapshot() = runTest {
         val repository = FakeTextRepository(TextState("keep", 1L, 1L))
-        val viewModel = MainScreenViewModel(repository)
+        val viewModel = MainScreenViewModel(repository, clock = { 2L })
+        advanceUntilIdle()
 
         viewModel.onClear()
         advanceUntilIdle()
 
         val state = viewModel.contentState()
-        assertEquals("", state.text)
+        assertEquals("", state.textFieldValue.text)
         assertEquals(2L, state.version)
-        assertEquals(listOf(Mutation.Clear), repository.mutations)
-    }
-
-    @Test
-    fun successfulClearClearsPersistenceMessage() = runTest {
-        val repository = FakeTextRepository(TextState("keep", 1L, 1L))
-        val viewModel = MainScreenViewModel(repository)
-        repository.nextMutationFailure = IOException("write failed")
-
-        viewModel.onTextChanged("updated")
-        advanceUntilIdle()
-        viewModel.onClear()
-        advanceUntilIdle()
-
-        val state = viewModel.contentState()
-        assertEquals("", state.text)
-        assertNull(state.persistenceMessage)
-    }
-
-    @Test
-    fun rapidInputEventsAreAppliedInOrder() = runTest {
-        val firstMutationGate = CompletableDeferred<Unit>()
-        val secondMutationGate = CompletableDeferred<Unit>()
-        val repository = FakeTextRepository(TextState("", 0L, 1L))
-        repository.mutationGates.addLast(firstMutationGate)
-        repository.mutationGates.addLast(secondMutationGate)
-        val viewModel = MainScreenViewModel(repository)
-
-        viewModel.onTextChanged("first")
-        runCurrent()
-        viewModel.onTextChanged("second")
-        runCurrent()
-        assertEquals(listOf(Mutation.Change("first")), repository.mutations)
-
-        firstMutationGate.complete(Unit)
-        runCurrent()
-        assertEquals(
-            listOf(Mutation.Change("first"), Mutation.Change("second")),
-            repository.mutations,
-        )
-
-        secondMutationGate.complete(Unit)
-        advanceUntilIdle()
-
-        assertEquals("second", viewModel.contentState().text)
+        assertEquals(TextState("", 2L, 2L), repository.persisted.last())
     }
 }
 
@@ -186,10 +169,7 @@ private class FailingTextRepository : TextRepository {
         throw IOException("read failed")
     }
 
-    override suspend fun changeText(newText: String): TextChangeResult =
-        error("unreachable")
-
-    override suspend fun clear(): TextState = error("unreachable")
+    override suspend fun persist(state: TextState) = error("unreachable")
 }
 
 private class FakeTextRepository(
@@ -198,45 +178,17 @@ private class FakeTextRepository(
     private val mutableState = MutableStateFlow(initialState)
 
     override val state: Flow<TextState> = mutableState
-    val mutations = mutableListOf<Mutation>()
-    val mutationGates = ArrayDeque<CompletableDeferred<Unit>>()
-    var nextMutationFailure: Throwable? = null
-    private var nextUpdatedAt = initialState.updatedAt + 1L
+    val persisted = mutableListOf<TextState>()
+    var persistGate: CompletableDeferred<Unit>? = null
+    var nextPersistenceFailure: Throwable? = null
 
-    override suspend fun changeText(newText: String): TextChangeResult {
-        mutations += Mutation.Change(newText)
-        awaitMutationGate()
-        val result = mutableState.value.changeText(newText, nextUpdatedAt++)
-        nextMutationFailure?.let {
-            nextMutationFailure = null
+    override suspend fun persist(state: TextState) {
+        persistGate?.await()
+        nextPersistenceFailure?.let {
+            nextPersistenceFailure = null
             throw it
         }
-        if (result is TextChangeResult.Accepted && result.state != mutableState.value) {
-            mutableState.value = result.state
-        }
-        return result
+        persisted += state
+        mutableState.value = state
     }
-
-    override suspend fun clear(): TextState {
-        mutations += Mutation.Clear
-        awaitMutationGate()
-        val cleared = mutableState.value.clear(nextUpdatedAt++)
-        nextMutationFailure?.let {
-            nextMutationFailure = null
-            throw it
-        }
-        mutableState.value = cleared
-        return cleared
-    }
-
-    private suspend fun awaitMutationGate() {
-        if (mutationGates.isNotEmpty()) {
-            mutationGates.removeFirst().await()
-        }
-    }
-}
-
-private sealed interface Mutation {
-    data class Change(val text: String) : Mutation
-    data object Clear : Mutation
 }

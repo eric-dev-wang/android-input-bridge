@@ -20,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,11 +46,11 @@ fun MainScreen(
 @Composable
 fun MainScreenContent(
     uiState: MainScreenUiState,
-    onTextChanged: (String) -> Unit,
+    onTextChanged: (TextFieldValue) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val text: String
+    val textFieldValue: TextFieldValue
     val version: Long
     val characterCount: Int
     val isLoading: Boolean
@@ -57,7 +58,7 @@ fun MainScreenContent(
     val persistenceMessage: PersistenceMessage?
     when (uiState) {
         MainScreenUiState.Loading -> {
-            text = ""
+            textFieldValue = TextFieldValue()
             version = 0L
             characterCount = 0
             isLoading = true
@@ -66,7 +67,7 @@ fun MainScreenContent(
         }
 
         is MainScreenUiState.Content -> {
-            text = uiState.text
+            textFieldValue = uiState.textFieldValue
             version = uiState.version
             characterCount = uiState.characterCount
             isLoading = false
@@ -75,7 +76,7 @@ fun MainScreenContent(
         }
 
         MainScreenUiState.InitializationError -> {
-            text = ""
+            textFieldValue = TextFieldValue()
             version = 0L
             characterCount = 0
             isLoading = false
@@ -91,7 +92,7 @@ fun MainScreenContent(
         Text(text = stringResource(R.string.input_bridge_title))
 
         OutlinedTextField(
-            value = text,
+            value = textFieldValue,
             onValueChange = onTextChanged,
             enabled = isEnabled,
             modifier = Modifier.fillMaxWidth().testTag("input_text"),
@@ -144,7 +145,7 @@ private fun MainScreenPreview() {
     AndroidInputBridgeTheme {
         MainScreenContent(
             uiState = MainScreenUiState.Content(
-                text = "",
+                textFieldValue = TextFieldValue(),
                 version = 0L,
                 characterCount = 0,
             ),

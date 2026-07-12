@@ -12,6 +12,8 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import com.ericdevwang.androidinputbridge.model.MAX_TEXT_CODE_POINTS
 import com.ericdevwang.androidinputbridge.model.TextChangeResult
 import com.ericdevwang.androidinputbridge.model.TextState
@@ -87,18 +89,27 @@ class MainScreenTest {
     private fun setScreen(initialState: TextState, persistenceFailure: Boolean = false) {
         composeTestRule.setContent {
             var state by remember { mutableStateOf(initialState) }
+            var editorValue by remember {
+                mutableStateOf(
+                    TextFieldValue(
+                        text = initialState.text,
+                        selection = TextRange(initialState.text.length),
+                    ),
+                )
+            }
             var persistenceMessage by remember { mutableStateOf<PersistenceMessage?>(null) }
 
             AndroidInputBridgeTheme {
                 MainScreenContent(
-                    uiState = state.toUiState(persistenceMessage),
-                    onTextChanged = { newText ->
-                        when (val result = state.changeText(newText, state.updatedAt + 1L)) {
+                    uiState = state.toUiState(editorValue, persistenceMessage),
+                    onTextChanged = { newValue ->
+                        when (val result = state.changeText(newValue.text, state.updatedAt + 1L)) {
                             is TextChangeResult.Accepted -> {
                                 if (persistenceFailure) {
                                     persistenceMessage = PersistenceMessage.SaveFailed
                                 } else {
                                     state = result.state
+                                    editorValue = newValue
                                     persistenceMessage = null
                                 }
                             }
@@ -111,6 +122,7 @@ class MainScreenTest {
                             persistenceMessage = PersistenceMessage.SaveFailed
                         } else {
                             state = state.clear(state.updatedAt + 1L)
+                            editorValue = TextFieldValue()
                             persistenceMessage = null
                         }
                     },
@@ -143,9 +155,10 @@ class MainScreenTest {
 }
 
 private fun TextState.toUiState(
+    editorValue: TextFieldValue,
     persistenceMessage: PersistenceMessage?,
 ) = MainScreenUiState.Content(
-    text = text,
+    textFieldValue = editorValue,
     version = version,
     characterCount = text.codePointCount(0, text.length),
     persistenceMessage = persistenceMessage,
