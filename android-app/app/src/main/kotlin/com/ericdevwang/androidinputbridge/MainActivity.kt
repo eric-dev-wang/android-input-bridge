@@ -13,17 +13,20 @@ import com.ericdevwang.androidinputbridge.R
 import com.ericdevwang.androidinputbridge.theme.AndroidInputBridgeTheme
 
 class MainActivity : ComponentActivity() {
-  override fun onCreate(savedInstanceState: Bundle?) {
-    installSplashScreen()
-    super.onCreate(savedInstanceState)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
+        super.onCreate(savedInstanceState)
 
-    enableEdgeToEdge()
-    setContent {
-      AndroidInputBridgeTheme {
-        Surface(modifier = Modifier.fillMaxSize(), color = colorResource(R.color.app_background)) {
-          MainNavigation()
+        enableEdgeToEdge()
+        setContent {
+            AndroidInputBridgeTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = colorResource(R.color.app_background),
+                ) {
+                    MainNavigation()
+                }
+            }
         }
-      }
     }
-  }
 }

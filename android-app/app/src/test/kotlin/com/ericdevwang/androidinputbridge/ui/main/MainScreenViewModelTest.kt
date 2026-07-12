@@ -2,19 +2,25 @@ package com.ericdevwang.androidinputbridge.ui.main
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.lifecycle.viewModelScope
 import com.ericdevwang.androidinputbridge.model.MAX_TEXT_CODE_POINTS
 import com.ericdevwang.androidinputbridge.model.TextState
+import com.ericdevwang.androidinputbridge.persistence.TextPersistenceCoordinator
 import com.ericdevwang.androidinputbridge.repository.TextRepository
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
 import org.junit.After
@@ -73,6 +79,40 @@ class MainScreenViewModelTest {
         advanceUntilIdle()
 
         assertEquals(TextState("fast", 1L, 2L), repository.persisted.last())
+    }
+
+    @Test
+    fun pendingPersistenceSurvivesViewModelClear() = runTest {
+        val repository = FakeTextRepository(TextState("", 0L, 1L))
+        val persistGate = CompletableDeferred<Unit>()
+        repository.persistGate = persistGate
+        val coordinatorScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val coordinator = TextPersistenceCoordinator(repository, coordinatorScope)
+        val viewModel = MainScreenViewModel(
+            repository = repository,
+            persistenceCoordinator = coordinator,
+            clock = { 2L },
+        )
+        advanceUntilIdle()
+
+        viewModel.onTextChanged(TextFieldValue("fast", selection = TextRange(4)))
+        viewModel.viewModelScope.cancel()
+
+        val recreatedViewModel = MainScreenViewModel(
+            repository = repository,
+            persistenceCoordinator = coordinator,
+            clock = { 3L },
+        )
+        runCurrent()
+
+        assertEquals("fast", recreatedViewModel.contentState().textFieldValue.text)
+        assertTrue(repository.persisted.isEmpty())
+
+        persistGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(TextState("fast", 1L, 2L), repository.persisted.last())
+        coordinatorScope.cancel()
     }
 
     @Test
@@ -143,6 +183,29 @@ class MainScreenViewModelTest {
         val state = viewModel.contentState()
         assertEquals("second", state.textFieldValue.text)
         assertNull(state.persistenceMessage)
+    }
+
+    @Test
+    fun newInputKeepsSaveFailureUntilItsPersistenceCompletes() = runTest {
+        val repository = FakeTextRepository(TextState("", 0L, 1L))
+        repository.nextPersistenceFailure = IOException("write failed")
+        val viewModel = MainScreenViewModel(repository, clock = { 2L })
+        advanceUntilIdle()
+
+        viewModel.onTextChanged(TextFieldValue("first", selection = TextRange(5)))
+        advanceUntilIdle()
+        assertEquals(PersistenceMessage.SaveFailed, viewModel.contentState().persistenceMessage)
+
+        val persistGate = CompletableDeferred<Unit>()
+        repository.persistGate = persistGate
+        viewModel.onTextChanged(TextFieldValue("second", selection = TextRange(6)))
+
+        assertEquals(PersistenceMessage.SaveFailed, viewModel.contentState().persistenceMessage)
+
+        persistGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertNull(viewModel.contentState().persistenceMessage)
     }
 
     @Test

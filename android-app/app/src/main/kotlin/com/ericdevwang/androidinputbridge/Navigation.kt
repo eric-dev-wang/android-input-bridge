@@ -8,16 +8,16 @@ import com.ericdevwang.androidinputbridge.ui.main.MainScreen
 
 @Composable
 fun MainNavigation() {
-  val backStack = rememberNavBackStack(Main)
+    val backStack = rememberNavBackStack(Main)
 
-  NavDisplay(
-    backStack = backStack,
-    onBack = { backStack.removeLastOrNull() },
-    entryProvider =
-      entryProvider {
-        entry<Main> {
-          MainScreen()
-        }
-      },
-  )
+    NavDisplay(
+        backStack = backStack,
+        onBack = { backStack.removeLastOrNull() },
+        entryProvider =
+            entryProvider {
+                entry<Main> {
+                    MainScreen()
+                }
+            },
+    )
 }
