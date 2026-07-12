@@ -1,0 +1,21 @@
+<idea-plugin>
+    <id>com.ericdevwang.androidinputbridge.plugin</id>
+    <name>Android Input Bridge</name>
+    <vendor>Android Input Bridge</vendor>
+
+    <description><![CDATA[
+        Displays temporary text from Android Input Bridge in an Android Studio tool window.
+    ]]></description>
+
+    <depends>com.intellij.modules.androidstudio</depends>
+    <depends>org.jetbrains.android</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceImplementation="com.ericdevwang.androidinputbridge.plugin.service.InputBridgeProjectService"/>
+        <toolWindow
+                id="Android Input Bridge"
+                anchor="right"
+                icon="/icons/androidInputBridge.svg"
+                factoryClass="com.ericdevwang.androidinputbridge.plugin.toolwindow.InputBridgeToolWindowFactory"/>
+    </extensions>
+</idea-plugin>

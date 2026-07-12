@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.extensions.intellijPlatform
+
 pluginManagement {
     repositories {
         google {
@@ -22,13 +24,18 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        intellijPlatform {
+            defaultRepositories()
+        }
     }
 }
 
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+    id("org.jetbrains.intellij.platform.settings") version "2.18.1"
 }
 
 rootProject.name = "Android Input Bridge"
 include(":app")
 include(":protocol")
+include(":android-studio-plugin")
