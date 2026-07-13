@@ -43,10 +43,16 @@ private fun parseBridgeVersion(rawVersion: String): BridgeVersion {
   val match = Regex("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$").matchEntire(rawVersion)
     ?: error("bridgeVersion must be SemVer major.minor.patch or 0.0.0-SNAPSHOT: $rawVersion")
   val (major, minor, patch) = match.destructured
+  val parsedMajor = major.toLongOrNull() ?: error("bridgeVersion major is out of range: $rawVersion")
+  val parsedMinor = minor.toLongOrNull() ?: error("bridgeVersion minor is out of range: $rawVersion")
+  val parsedPatch = patch.toLongOrNull() ?: error("bridgeVersion patch is out of range: $rawVersion")
+  check(parsedMinor in 0L..999L && parsedPatch in 0L..999L) {
+    "bridgeVersion minor and patch must be between 0 and 999: $rawVersion"
+  }
   return BridgeVersion(
-    major = major.toLongOrNull() ?: error("bridgeVersion major is out of range: $rawVersion"),
-    minor = minor.toLongOrNull() ?: error("bridgeVersion minor is out of range: $rawVersion"),
-    patch = patch.toLongOrNull() ?: error("bridgeVersion patch is out of range: $rawVersion"),
+    major = parsedMajor,
+    minor = parsedMinor,
+    patch = parsedPatch,
     isSnapshot = false,
   )
 }
@@ -70,6 +76,8 @@ tasks.register("verifyBridgeVersion") {
     check(runCatching { parseBridgeVersion("v1.2.3") }.isFailure)
     check(runCatching { parseBridgeVersion("01.2.3") }.isFailure)
     check(runCatching { parseBridgeVersion("1.2") }.isFailure)
+    check(runCatching { parseBridgeVersion("1.1000.0") }.isFailure)
+    check(runCatching { parseBridgeVersion("1.0.1000") }.isFailure)
     check(runCatching { parseBridgeVersion("2101.0.0").versionCode }.isFailure)
     check(runCatching { parseBridgeVersion("9223372036854.0.0").versionCode }.isFailure)
   }

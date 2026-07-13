@@ -5,6 +5,7 @@ import com.ericdevwang.androidinputbridge.http.HttpTextRepository
 import com.ericdevwang.androidinputbridge.protocol.ClearResponse
 import com.ericdevwang.androidinputbridge.protocol.ErrorResponse
 import com.ericdevwang.androidinputbridge.protocol.HealthResponse
+import com.ericdevwang.androidinputbridge.protocol.ProtocolConstants
 import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -30,8 +31,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-const val DEFAULT_SERVER_HOST = "127.0.0.1"
-const val DEFAULT_SERVER_PORT = 18080
+const val DEFAULT_SERVER_HOST = ProtocolConstants.LOCALHOST
+const val DEFAULT_SERVER_PORT = ProtocolConstants.HTTP_PORT
 
 data class InputHttpServerConfig(
     val host: String = DEFAULT_SERVER_HOST,

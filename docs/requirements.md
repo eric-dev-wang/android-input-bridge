@@ -604,7 +604,7 @@ adb -s <serial> forward --remove tcp:18080
 
 - 无设备：显示 `No Android device connected.`。
 - 一个设备：自动选择。
-- 多个设备：提供下拉框选择，不能静默随机选择；保存最后一次选择的 serial。
+- 多个设备：提供下拉框选择，不能静默随机选择；设备选择只在当前插件会话内有效，不持久化 serial。
 - `unauthorized`：显示 `Device authorization required. Check the phone and accept the ADB prompt.`。
 - `offline`：显示 `Device is offline.`。
 
@@ -899,7 +899,7 @@ POST /api/v1/text/clear/{expectedVersion}
 14. USB 重连后 Reconnect 成功。
 15. App 关闭后显示 Server Offline，重新打开后恢复。
 16. 多台设备连接时要求选择设备。
-17. Android Studio 重启后设置可恢复。
+17. Android Studio 重启后不恢复设备选择或连接设置，并继续使用固定端口和超时。
 
 ## 19. 交付标准
 
@@ -951,7 +951,7 @@ android-studio-plugin/build/distributions/
 ./gradlew :android-studio-plugin:verifyPlugin
 ```
 
-发布 Workflow 只接受 `v<major>.<minor>.<patch>` Tag。发布前必须通过同一套验证矩阵，然后创建 GitHub Release 并上传 Android Debug APK 和 Plugin distribution ZIP。发布版本同时注入 Android App 和 Plugin。
+发布 Workflow 只接受 `v<major>.<minor>.<patch>` Tag；为保证 Android `versionCode` 单调且不冲突，`minor` 和 `patch` 必须在 `0..999` 范围内。发布前必须通过同一套验证矩阵，然后创建 GitHub Release 并上传 Android Debug APK 和 Plugin distribution ZIP。发布版本同时注入 Android App 和 Plugin。
 
 ## 20. MVP 验收标准
 

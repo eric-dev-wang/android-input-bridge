@@ -48,17 +48,10 @@ jobs:
           fi
 
           version="$major.$minor.$patch"
-          if (( major > 2100000000 || minor > 2100000000 || patch > 2100000000 )); then
-            echo "Tag components are too large for Android versionCode." >&2
-            exit 1
-          fi
-          version_code=$((major * 1000000 + minor * 1000 + patch))
-          if (( version_code < 1 || version_code > 2100000000 )); then
-            echo "Tag produces an Android versionCode outside the supported range: $version_code" >&2
-            exit 1
-          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Gradle release version
+        run: ./gradlew --no-configuration-cache -PbridgeVersion="${{ steps.version.outputs.version }}" help
 
       - name: Verify version rules
         run: ./gradlew --no-configuration-cache verifyBridgeVersion

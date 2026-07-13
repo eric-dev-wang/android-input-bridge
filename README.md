@@ -126,7 +126,7 @@ CI 在 Pull Request 和推送到 `main` 时运行完整验证矩阵：
   :android-studio-plugin:verifyPlugin
 ```
 
-发布通过 `v<major>.<minor>.<patch>` Tag 触发，例如 `v1.2.3`。发布 Workflow 会先运行完整验证，然后创建 GitHub Release 并上传：
+发布通过 `v<major>.<minor>.<patch>` Tag 触发，例如 `v1.2.3`。为保证 Android `versionCode` 单调且不冲突，`minor` 和 `patch` 必须在 `0..999` 范围内。发布 Workflow 会先运行完整验证，然后创建 GitHub Release 并上传：
 
 ```text
 android-input-bridge-v1.2.3-debug.apk
