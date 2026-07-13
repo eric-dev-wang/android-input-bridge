@@ -4,6 +4,7 @@ import com.ericdevwang.androidinputbridge.plugin.adb.AdbDevice
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionController
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionState
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeState
+import com.ericdevwang.androidinputbridge.plugin.notifications.InputBridgeNotifier
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -50,7 +51,68 @@ class InputBridgePanelTest {
         assertEquals("Last refresh: $expectedTime", panel.lastRefreshLabel.text)
         assertTrue(panel.refreshButton.isEnabled)
         assertTrue(panel.reconnectButton.isEnabled)
+        assertTrue(panel.copyButton.isEnabled)
+        assertTrue(panel.copyAndClearButton.isEnabled)
+    }
+
+    @Test
+    fun panelEnablesCopyActionsForConnectedNonEmptyText() = onEdt {
+        val controller = FakeController()
+        val panel = InputBridgePanel(controller)
+        controller.replace(connectedState(text = "text"))
+
+        assertTrue(panel.copyButton.isEnabled)
+        assertTrue(panel.copyAndClearButton.isEnabled)
+    }
+
+    @Test
+    fun panelDisablesCopyActionsForEmptyText() = onEdt {
+        val controller = FakeController()
+        val panel = InputBridgePanel(controller)
+        controller.replace(connectedState(text = ""))
+
         assertFalse(panel.copyButton.isEnabled)
+        assertFalse(panel.copyAndClearButton.isEnabled)
+    }
+
+    @Test
+    fun panelDisablesAllBridgeActionsWhileBusy() = onEdt {
+        val controller = FakeController()
+        val panel = InputBridgePanel(controller)
+        controller.replace(connectedState(text = "text", isBusy = true))
+
+        assertFalse(panel.refreshButton.isEnabled)
+        assertFalse(panel.copyButton.isEnabled)
+        assertFalse(panel.copyAndClearButton.isEnabled)
+        assertFalse(panel.reconnectButton.isEnabled)
+        assertFalse(panel.deviceSelector.isEnabled)
+    }
+
+    @Test
+    fun panelRoutesCopyActionsToController() = onEdt {
+        val controller = FakeController()
+        val panel = InputBridgePanel(controller)
+        controller.replace(connectedState(text = "text"))
+
+        panel.copyButton.doClick()
+        panel.copyAndClearButton.doClick()
+
+        assertEquals(1, controller.copyCalls)
+        assertEquals(1, controller.copyAndClearCalls)
+    }
+
+    @Test
+    fun panelShowsInlineFeedbackAndNotifiesOncePerMessage() = onEdt {
+        val controller = FakeController()
+        val notifier = RecordingNotifier()
+        val panel = InputBridgePanel(controller, notifier)
+
+        controller.replace(BridgeState(feedbackMessage = "Copied"))
+        controller.replace(BridgeState(feedbackMessage = "Copied"))
+        controller.replace(BridgeState(feedbackMessage = "Copied and cleared"))
+
+        assertEquals("Copied and cleared", panel.feedbackLabel.text)
+        assertEquals(listOf("Copied", "Copied and cleared"), notifier.messages)
     }
 
     @Test
@@ -70,10 +132,32 @@ class InputBridgePanelTest {
         return result as T
     }
 
+    private fun connectedState(text: String, isBusy: Boolean = false) = BridgeState(
+        connectionState = BridgeConnectionState.CONNECTED,
+        devices = listOf(AdbDevice("serial", "Pixel 8")),
+        selectedSerial = "serial",
+        adbStatus = "Available",
+        forwardStatus = "Forwarding localhost:18080 → device:18080",
+        serverStatus = "Online",
+        text = text,
+        version = 17,
+        isBusy = isBusy,
+    )
+
+    private class RecordingNotifier : InputBridgeNotifier {
+        val messages = mutableListOf<String>()
+
+        override fun notify(message: String) {
+            messages += message
+        }
+    }
+
     private class FakeController : BridgeConnectionController {
         override var state: BridgeState = BridgeState()
             private set
         private val listeners = mutableListOf<(BridgeState) -> Unit>()
+        var copyCalls = 0
+        var copyAndClearCalls = 0
 
         override fun addListener(listener: (BridgeState) -> Unit) {
             listeners += listener
@@ -89,6 +173,14 @@ class InputBridgePanelTest {
         override fun refresh() = Unit
 
         override fun selectDevice(serial: String) = Unit
+
+        override fun copy() {
+            copyCalls++
+        }
+
+        override fun copyAndClear() {
+            copyAndClearCalls++
+        }
 
         override fun dispose() = listeners.clear()
 

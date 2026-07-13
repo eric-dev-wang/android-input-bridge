@@ -25,6 +25,7 @@ data class BridgeState(
     val version: Long? = null,
     val lastRefresh: Instant? = null,
     val errorMessage: String? = null,
+    val feedbackMessage: String? = null,
     val isBusy: Boolean = false,
 )
 
@@ -40,4 +41,8 @@ interface BridgeConnectionController : Disposable {
     fun refresh()
 
     fun selectDevice(serial: String)
+
+    fun copy()
+
+    fun copyAndClear()
 }

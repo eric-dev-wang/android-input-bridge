@@ -1,6 +1,7 @@
 package com.ericdevwang.androidinputbridge.plugin.http
 
 import com.ericdevwang.androidinputbridge.protocol.HealthResponse
+import com.ericdevwang.androidinputbridge.protocol.ClearResponse
 import com.ericdevwang.androidinputbridge.protocol.ProtocolConstants
 import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import java.io.IOException
@@ -17,9 +18,12 @@ data class HttpResponse(
     val body: String,
 )
 
-fun interface HttpProbeTransport : AutoCloseable {
+interface HttpProbeTransport : AutoCloseable {
     @Throws(IOException::class)
     fun get(path: String): HttpResponse
+
+    @Throws(IOException::class)
+    fun post(path: String): HttpResponse
 
     override fun close() = Unit
 }
@@ -34,6 +38,7 @@ data class ProbeError(
     val message: String,
     val retryable: Boolean,
     val cause: Throwable? = null,
+    val statusCode: Int? = null,
 )
 
 sealed interface HttpProbeResult<out T> {
@@ -52,6 +57,8 @@ interface HttpProbeClient : AutoCloseable {
 
     fun fetchText(): HttpProbeResult<TextResponse>
 
+    fun clearText(expectedVersion: Long): HttpProbeResult<ClearResponse>
+
     override fun close() = Unit
 }
 
@@ -64,7 +71,7 @@ class JdkHttpProbeClient(
     }
 
     override fun probe(): HttpProbeResult<BridgeProbe> {
-        val health = when (val result = request<HealthResponse>(HEALTH_PATH, requireHttp200 = true)) {
+        val health = when (val result = get<HealthResponse>(HEALTH_PATH, requireHttp200 = true)) {
             is HttpProbeResult.Failure -> return result
             is HttpProbeResult.Success -> result.value
         }
@@ -77,21 +84,37 @@ class JdkHttpProbeClient(
                     "${ProtocolConstants.CURRENT_VERSION}.",
             )
         }
-        val text = when (val result = request<TextResponse>(TEXT_PATH)) {
+        val text = when (val result = get<TextResponse>(TEXT_PATH)) {
             is HttpProbeResult.Failure -> return result
             is HttpProbeResult.Success -> result.value
         }
         return HttpProbeResult.Success(BridgeProbe(health = health, text = text))
     }
 
-    override fun fetchText(): HttpProbeResult<TextResponse> = request(TEXT_PATH)
+    override fun fetchText(): HttpProbeResult<TextResponse> = get(TEXT_PATH)
+
+    override fun clearText(expectedVersion: Long): HttpProbeResult<ClearResponse> {
+        if (expectedVersion < 0) {
+            return invalidResponse("expectedVersion must not be negative.")
+        }
+        return post("$CLEAR_PATH/$expectedVersion")
+    }
+
+    private inline fun <reified T> get(
+        path: String,
+        requireHttp200: Boolean = false,
+    ): HttpProbeResult<T> = request(path, requireHttp200, transport::get)
+
+    private inline fun <reified T> post(path: String): HttpProbeResult<T> =
+        request(path, requireHttp200 = true, transport::post)
 
     private inline fun <reified T> request(
         path: String,
-        requireHttp200: Boolean = false,
+        requireHttp200: Boolean,
+        send: (String) -> HttpResponse,
     ): HttpProbeResult<T> {
         val response = try {
-            transport.get(path)
+            send(path)
         } catch (exception: IOException) {
             return HttpProbeResult.Failure(
                 ProbeError(
@@ -103,7 +126,7 @@ class JdkHttpProbeClient(
             )
         }
         if ((requireHttp200 && response.statusCode != 200) || (!requireHttp200 && response.statusCode !in 200..299)) {
-            return invalidResponse("HTTP $path returned status ${response.statusCode}.")
+            return invalidResponse("HTTP $path returned status ${response.statusCode}.", response.statusCode)
         }
         return try {
             HttpProbeResult.Success(json.decodeFromString<T>(response.body))
@@ -119,18 +142,20 @@ class JdkHttpProbeClient(
         }
     }
 
-    private fun invalidResponse(message: String): HttpProbeResult.Failure =
+    private fun invalidResponse(message: String, statusCode: Int? = null): HttpProbeResult.Failure =
         HttpProbeResult.Failure(
             ProbeError(
                 category = ProbeFailureCategory.INVALID_RESPONSE,
                 message = message,
                 retryable = false,
+                statusCode = statusCode,
             ),
         )
 
     private companion object {
         const val HEALTH_PATH = "/api/v1/health"
         const val TEXT_PATH = "/api/v1/text"
+        const val CLEAR_PATH = "/api/v1/text/clear"
     }
 }
 
@@ -148,6 +173,22 @@ class JdkHttpProbeTransport(
             .timeout(requestTimeout)
             .header("Accept", "application/json")
             .GET()
+            .build()
+        return try {
+            val response = httpClient.send(request, JdkHttpResponse.BodyHandlers.ofString())
+            HttpResponse(statusCode = response.statusCode(), body = response.body())
+        } catch (exception: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw IOException("HTTP request interrupted", exception)
+        }
+    }
+
+    override fun post(path: String): HttpResponse {
+        val request = HttpRequest.newBuilder(baseUri.resolve(path.removePrefix("/")))
+            .timeout(requestTimeout)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json; charset=utf-8")
+            .POST(HttpRequest.BodyPublishers.noBody())
             .build()
         return try {
             val response = httpClient.send(request, JdkHttpResponse.BodyHandlers.ofString())

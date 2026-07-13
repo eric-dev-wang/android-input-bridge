@@ -10,7 +10,7 @@ import com.intellij.ui.content.ContentFactory
 class InputBridgeToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val service = project.service<InputBridgeProjectService>()
-        val panel = InputBridgePanel(service.connectionController)
+        val panel = InputBridgePanel(service.connectionController, service.notifier)
         val content = ContentFactory.getInstance().createContent(panel, null, false)
         content.setDisposer(panel)
         toolWindow.contentManager.addContent(content)

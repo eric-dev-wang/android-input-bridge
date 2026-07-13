@@ -372,28 +372,17 @@ GET /api/v1/text
 请求：
 
 ```http
-POST /api/v1/text/clear
-Content-Type: application/json
+POST /api/v1/text/clear/{expectedVersion}
 ```
 
-请求 Body：
-
-```json
-{
-  "expectedVersion": 17
-}
-```
+`expectedVersion` 必须是客户端此前读取到的非负十进制版本号。请求不包含 Body。
 
 成功响应：
 
 ```json
 {
-  "success": true,
-  "data": {
-    "clearedVersion": 17,
-    "newVersion": 18
-  },
-  "error": null
+  "clearedVersion": 17,
+  "newVersion": 18
 }
 ```
 
@@ -401,13 +390,10 @@ Content-Type: application/json
 
 ```json
 {
-  "success": false,
-  "data": {
+  "code": "VERSION_CONFLICT",
+  "message": "Text changed after the client loaded it.",
+  "details": {
     "currentVersion": 18
-  },
-  "error": {
-    "code": "VERSION_CONFLICT",
-    "message": "Text changed after the client loaded it."
   }
 }
 ```
@@ -532,9 +518,9 @@ Error
 #### Copy
 
 1. 使用 Tool Window 当前已显示的文本，不重新请求服务。
-2. 文本为空时提示 `Nothing to copy`。
+2. 文本为空时禁用 Copy 按钮，不执行剪贴板或 HTTP 操作。
 3. 写入系统剪贴板。
-4. 成功后显示短暂提示。
+4. 成功或失败后在 Tool Window 内显示反馈，并发送短暂 IntelliJ Notification。
 5. 不请求 Android 清空。
 
 不重新请求的原因是避免用户看到的文本与复制的文本不一致。
@@ -544,9 +530,8 @@ Error
 1. 获取当前 Tool Window 中的 `text` 和 `version` 快照。
 2. 将快照写入系统剪贴板。
 3. 确认写入成功。
-4. 请求 `POST /api/v1/text/clear`。
-5. 携带 `expectedVersion`。
-6. 清空成功后更新 UI。
+4. 请求 `POST /api/v1/text/clear/{expectedVersion}`，不发送 Body。
+5. 清空成功后更新 UI。
 
 顺序必须是：
 
@@ -554,7 +539,9 @@ Error
 Copy 成功 → Clear
 ```
 
-不得先 Clear 后 Copy。执行期间应暂时禁用 Copy & Clear。
+不得先 Clear 后 Copy。执行期间应禁用 Refresh、Reconnect、设备选择、Copy 和 Copy & Clear。
+
+如果剪贴板写入失败，不得发送 Clear；如果 Clear 超时、连接失败、返回非 `200` 或响应 JSON 无效，应保留当前 Tool Window 文本和版本，不自动重试，并显示已复制但清空失败的反馈。
 
 #### Version Conflict
 
@@ -881,7 +868,7 @@ than defining a second set of API model classes.
 ```text
 GET /api/v1/health
 GET /api/v1/text
-POST /api/v1/text/clear
+POST /api/v1/text/clear/{expectedVersion}
 ```
 
 验证 HTTP status、JSON 格式、UTF-8、version conflict 和错误响应。
@@ -911,12 +898,15 @@ POST /api/v1/text/clear
 6. Copy 后在 Windows 记事本中手动粘贴。
 7. Copy 后手机内容保持不变。
 8. Copy & Clear 后复制成功且手机清空。
-9. 使用旧 version 清空时不会误删新文本。
-10. USB 断开后显示离线状态。
-11. USB 重连后 Reconnect 成功。
-12. App 关闭后显示 Server Offline，重新打开后恢复。
-13. 多台设备连接时要求选择设备。
-14. Android Studio 重启后设置可恢复。
+9. 剪贴板写入失败时不发送 Clear，Android 文本保持不变。
+10. Clear 超时或返回无效响应时，已复制文本保留在剪贴板，Tool Window 文本和版本保持不变。
+11. 空文本时 Copy 和 Copy & Clear 按钮禁用。
+12. 使用旧 version 清空时不会误删新文本，并自动刷新一次。
+13. USB 断开后显示离线状态。
+14. USB 重连后 Reconnect 成功。
+15. App 关闭后显示 Server Offline，重新打开后恢复。
+16. 多台设备连接时要求选择设备。
+17. Android Studio 重启后设置可恢复。
 
 ## 19. 交付标准
 

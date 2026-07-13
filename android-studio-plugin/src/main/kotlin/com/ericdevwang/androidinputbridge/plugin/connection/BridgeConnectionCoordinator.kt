@@ -6,9 +6,12 @@ import com.ericdevwang.androidinputbridge.plugin.adb.AdbLocator
 import com.ericdevwang.androidinputbridge.plugin.adb.AdbResult
 import com.ericdevwang.androidinputbridge.plugin.adb.DeviceSelector
 import com.ericdevwang.androidinputbridge.plugin.adb.PortForwardManager
+import com.ericdevwang.androidinputbridge.plugin.clipboard.ClipboardWriteResult
+import com.ericdevwang.androidinputbridge.plugin.clipboard.ClipboardWriter
 import com.ericdevwang.androidinputbridge.plugin.http.BridgeProbe
 import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeClient
 import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeResult
+import com.ericdevwang.androidinputbridge.plugin.http.ProbeError
 import com.ericdevwang.androidinputbridge.plugin.http.ProbeFailureCategory
 import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import com.intellij.openapi.Disposable
@@ -23,6 +26,7 @@ class BridgeConnectionCoordinator(
     private val httpProbeClientFactory: () -> HttpProbeClient,
     private val deviceSelector: DeviceSelector,
     private val executor: Executor,
+    private val clipboardWriter: ClipboardWriter,
     private val clock: () -> Instant = { Instant.now() },
 ) : BridgeConnectionController {
     private val lock = Any()
@@ -46,6 +50,16 @@ class BridgeConnectionCoordinator(
     private data class StateNotification(
         val state: BridgeState,
         val listeners: List<(BridgeState) -> Unit>,
+    )
+
+    private data class TextSnapshot(
+        val text: String,
+        val version: Long?,
+    )
+
+    private data class OperationStart(
+        val snapshot: TextSnapshot,
+        val notification: StateNotification,
     )
 
     override var state: BridgeState = BridgeState()
@@ -95,6 +109,18 @@ class BridgeConnectionCoordinator(
         }
         notifyListeners(notification)
         reconnect()
+    }
+
+    override fun copy() {
+        val operation = beginTextOperation(requireVersion = false) ?: return
+        notifyListeners(operation.notification)
+        submit { runCopy(operation.snapshot) }
+    }
+
+    override fun copyAndClear() {
+        val operation = beginTextOperation(requireVersion = true) ?: return
+        notifyListeners(operation.notification)
+        submit { runCopyAndClear(operation.snapshot) }
     }
 
     override fun dispose() {
@@ -218,6 +244,133 @@ class BridgeConnectionCoordinator(
         }
     }
 
+    private fun runCopy(snapshot: TextSnapshot) {
+        if (disposed) return
+        val result = runCatching { clipboardWriter.write(snapshot.text) }
+            .getOrElse { ClipboardWriteResult.Failure(CLIPBOARD_FAILURE_MESSAGE, it) }
+        when (result) {
+            ClipboardWriteResult.Success -> finish(
+                state.copy(
+                    errorMessage = null,
+                    feedbackMessage = COPIED_MESSAGE,
+                ),
+            )
+            is ClipboardWriteResult.Failure -> finish(
+                state.copy(
+                    errorMessage = null,
+                    feedbackMessage = result.message,
+                ),
+            )
+        }
+    }
+
+    private fun runCopyAndClear(snapshot: TextSnapshot) {
+        if (disposed) return
+        val clipboardResult = runCatching { clipboardWriter.write(snapshot.text) }
+            .getOrElse { ClipboardWriteResult.Failure(CLIPBOARD_FAILURE_MESSAGE, it) }
+        when (clipboardResult) {
+            is ClipboardWriteResult.Failure -> {
+                finish(
+                    state.copy(
+                        errorMessage = null,
+                        feedbackMessage = clipboardResult.message,
+                    ),
+                )
+                return
+            }
+            ClipboardWriteResult.Success -> Unit
+        }
+
+        if (disposed) return
+        val probe = activeProbeClient
+        if (probe == null || snapshot.version == null) {
+            finishClearFailure()
+            return
+        }
+
+        val clearResult = runCatching { probe.clearText(snapshot.version) }
+            .getOrElse {
+                HttpProbeResult.Failure(
+                    ProbeError(
+                        category = ProbeFailureCategory.CONNECTION,
+                        message = it.message ?: "Clear request failed.",
+                        retryable = true,
+                        cause = it,
+                    ),
+                )
+            }
+        when (clearResult) {
+            is HttpProbeResult.Success -> finish(
+                state.copy(
+                    text = "",
+                    version = clearResult.value.newVersion,
+                    lastRefresh = clock(),
+                    errorMessage = null,
+                    feedbackMessage = COPIED_AND_CLEARED_MESSAGE,
+                ),
+            )
+            is HttpProbeResult.Failure -> {
+                if (clearResult.error.statusCode == VERSION_CONFLICT_STATUS) {
+                    refreshAfterConflict(probe)
+                } else {
+                    finishClearFailure()
+                }
+            }
+        }
+    }
+
+    private fun refreshAfterConflict(probe: HttpProbeClient) {
+        if (disposed) return
+        val refreshed = runCatching { probe.fetchText() }
+            .getOrElse {
+                HttpProbeResult.Failure(
+                    ProbeError(
+                        category = ProbeFailureCategory.CONNECTION,
+                        message = it.message ?: "Refresh request failed.",
+                        retryable = true,
+                        cause = it,
+                    ),
+                )
+            }
+        when (refreshed) {
+            is HttpProbeResult.Success -> finish(
+                state.copy(
+                    text = refreshed.value.text,
+                    version = refreshed.value.version,
+                    lastRefresh = clock(),
+                    errorMessage = null,
+                    feedbackMessage = VERSION_CONFLICT_MESSAGE,
+                ),
+            )
+            is HttpProbeResult.Failure -> finishClearFailure()
+        }
+    }
+
+    private fun finishClearFailure() {
+        finish(
+            state.copy(
+                errorMessage = null,
+                feedbackMessage = CLEAR_FAILURE_MESSAGE,
+            ),
+        )
+    }
+
+    private fun beginTextOperation(requireVersion: Boolean): OperationStart? = synchronized(lock) {
+        if (disposed || busy || state.text.isEmpty()) return@synchronized null
+        if (requireVersion && state.version == null) return@synchronized null
+        busy = true
+        val snapshot = TextSnapshot(text = state.text, version = state.version)
+        val newState = state.copy(
+            isBusy = true,
+            errorMessage = null,
+            feedbackMessage = null,
+        )
+        OperationStart(
+            snapshot = snapshot,
+            notification = StateNotification(newState, publishLocked(newState)),
+        )
+    }
+
     private fun getOrCreateProbe(): HttpProbeClient? {
         synchronized(lock) {
             if (disposed) return null
@@ -241,6 +394,7 @@ class BridgeConnectionCoordinator(
                 version = probe.text.version,
                 lastRefresh = clock(),
                 errorMessage = null,
+                feedbackMessage = null,
             ),
         )
     }
@@ -254,6 +408,7 @@ class BridgeConnectionCoordinator(
                 version = text.version,
                 lastRefresh = clock(),
                 errorMessage = null,
+                feedbackMessage = null,
             ),
         )
     }
@@ -265,6 +420,7 @@ class BridgeConnectionCoordinator(
                     connectionState = BridgeConnectionState.SERVER_OFFLINE,
                     serverStatus = "Offline",
                     errorMessage = error.message,
+                    feedbackMessage = null,
                 ),
             )
         } else {
@@ -278,6 +434,7 @@ class BridgeConnectionCoordinator(
                 connectionState = BridgeConnectionState.SERVER_OFFLINE,
                 serverStatus = "Offline",
                 errorMessage = message,
+                feedbackMessage = null,
             ),
         )
     }
@@ -287,6 +444,7 @@ class BridgeConnectionCoordinator(
             state.copy(
                 connectionState = BridgeConnectionState.ERROR,
                 errorMessage = message,
+                feedbackMessage = null,
             ),
         )
     }
@@ -324,5 +482,15 @@ class BridgeConnectionCoordinator(
         } catch (exception: RejectedExecutionException) {
             finishError("Background task could not be scheduled.")
         }
+    }
+
+    private companion object {
+        const val CLIPBOARD_FAILURE_MESSAGE = "Clipboard write failed."
+        const val CLEAR_FAILURE_MESSAGE = "Text was copied, but the phone content could not be cleared."
+        const val VERSION_CONFLICT_MESSAGE =
+            "Text was copied, but the phone content changed and was not cleared."
+        const val COPIED_MESSAGE = "Copied"
+        const val COPIED_AND_CLEARED_MESSAGE = "Copied and cleared"
+        const val VERSION_CONFLICT_STATUS = 409
     }
 }
