@@ -10,6 +10,8 @@ import java.awt.Font
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.swing.BorderFactory
 import javax.swing.Box
 import javax.swing.BoxLayout
@@ -39,9 +41,10 @@ class InputBridgePanel(
     private val adbLabel = JLabel()
     private val forwardLabel = JLabel()
     private val serverLabel = JLabel()
-    private val lastRefreshLabel = JLabel()
+    internal val lastRefreshLabel = JLabel()
     private val lengthLabel = JLabel()
     private val versionLabel = JLabel()
+    private val lastRefreshFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     private var disposed = false
     private var updatingDeviceSelector = false
     private val listener: (BridgeState) -> Unit = ::dispatchRender
@@ -154,7 +157,7 @@ class InputBridgePanel(
         adbLabel.text = "ADB: ${state.adbStatus}"
         forwardLabel.text = "Forward: ${state.forwardStatus}"
         serverLabel.text = "Server: ${state.serverStatus}"
-        lastRefreshLabel.text = "Last refresh: ${state.lastRefresh ?: "—"}"
+        lastRefreshLabel.text = "Last refresh: ${state.lastRefresh?.atZone(ZoneId.systemDefault())?.format(lastRefreshFormatter) ?: "—"}"
         lengthLabel.text = "Length: ${state.text.length}"
         versionLabel.text = "Version: ${state.version ?: "—"}"
         feedbackLabel.text = state.errorMessage.orEmpty()

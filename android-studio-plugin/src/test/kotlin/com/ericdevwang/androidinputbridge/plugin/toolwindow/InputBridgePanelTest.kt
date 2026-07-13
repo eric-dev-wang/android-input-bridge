@@ -5,6 +5,8 @@ import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionCont
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionState
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeState
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.swing.SwingUtilities
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -42,6 +44,10 @@ class InputBridgePanelTest {
         assertEquals("Status: Connected", panel.statusTextLabel.text)
         assertEquals("Pixel 8 (serial)", (panel.deviceSelector.selectedItem as AdbDevice).displayName)
         assertEquals("你好\n👋", panel.textArea.text)
+        val expectedTime = DateTimeFormatter.ofPattern("HH:mm:ss")
+            .withZone(ZoneId.systemDefault())
+            .format(Instant.parse("2026-07-13T12:00:00Z"))
+        assertEquals("Last refresh: $expectedTime", panel.lastRefreshLabel.text)
         assertTrue(panel.refreshButton.isEnabled)
         assertTrue(panel.reconnectButton.isEnabled)
         assertFalse(panel.copyButton.isEnabled)
