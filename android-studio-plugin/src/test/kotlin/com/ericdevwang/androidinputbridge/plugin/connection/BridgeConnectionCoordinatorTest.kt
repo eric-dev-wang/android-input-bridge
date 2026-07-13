@@ -165,6 +165,21 @@ class BridgeConnectionCoordinatorTest {
     }
 
     @Test
+    fun runtimeExecutorFailureClearsBusyState() {
+        val coordinator = newCoordinator(
+            adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8"))))),
+            probe = SuccessfulProbe(),
+            executor = Executor { throw IllegalStateException("executor closed") },
+        )
+
+        coordinator.reconnect()
+
+        assertFalse(coordinator.state.isBusy)
+        assertEquals(BridgeConnectionState.ERROR, coordinator.state.connectionState)
+        assertTrue(coordinator.state.errorMessage!!.contains("scheduled"))
+    }
+
+    @Test
     fun copyUsesDisplayedSnapshotAndDoesNotCallHttp() {
         val probe = RecordingProbe()
         val clipboard = RecordingClipboardWriter()

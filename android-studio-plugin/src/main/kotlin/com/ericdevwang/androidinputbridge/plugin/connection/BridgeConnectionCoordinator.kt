@@ -18,7 +18,6 @@ import com.intellij.openapi.Disposable
 import java.nio.file.Path
 import java.time.Instant
 import java.util.concurrent.Executor
-import java.util.concurrent.RejectedExecutionException
 
 class BridgeConnectionCoordinator(
     private val adbLocator: AdbLocator,
@@ -479,7 +478,7 @@ class BridgeConnectionCoordinator(
     private fun submit(task: () -> Unit) {
         try {
             executor.execute(task)
-        } catch (exception: RejectedExecutionException) {
+        } catch (exception: RuntimeException) {
             finishError("Background task could not be scheduled.")
         }
     }
