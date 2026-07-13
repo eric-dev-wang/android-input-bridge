@@ -817,9 +817,8 @@ android-studio-plugin/
 │   │   └── AndroidBridgeClient.kt
 │   ├── clipboard/
 │   │   └── ClipboardWriter.kt
-│   ├── settings/
-│   │   ├── InputBridgeSettings.kt
-│   │   └── InputBridgeConfigurable.kt
+│   ├── logging/
+│   │   └── BridgeLog.kt
 │   ├── service/
 │   │   └── InputBridgeProjectService.kt
 │   └── notifications/

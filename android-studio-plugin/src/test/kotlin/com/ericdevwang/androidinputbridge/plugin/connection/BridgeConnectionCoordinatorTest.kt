@@ -124,6 +124,25 @@ class BridgeConnectionCoordinatorTest {
     }
 
     @Test
+    fun disposeSchedulesHttpClientCloseOffCallingThread() {
+        val executor = SwitchingExecutor()
+        val probe = ThreadTrackingClosableProbe()
+        val coordinator = newCoordinator(
+            adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8"))))),
+            probe = probe,
+            executor = executor,
+        )
+        coordinator.reconnect()
+        executor.runAsync = true
+        val disposingThread = Thread.currentThread()
+
+        coordinator.dispose()
+
+        assertTrue(probe.closeLatch.await(1, TimeUnit.SECONDS))
+        assertTrue(probe.closeThread !== disposingThread)
+    }
+
+    @Test
     fun listenerNotificationDoesNotHoldCoordinatorLock() {
         val device = AdbDevice("serial", "Pixel 8")
         val coordinator = newCoordinator(
@@ -441,6 +460,16 @@ class BridgeConnectionCoordinatorTest {
         }
     }
 
+    private class ThreadTrackingClosableProbe : SuccessfulProbe() {
+        val closeLatch = CountDownLatch(1)
+        var closeThread: Thread? = null
+
+        override fun close() {
+            closeThread = Thread.currentThread()
+            closeLatch.countDown()
+        }
+    }
+
     private class SequencedProbe(
         private vararg val results: HttpProbeResult<BridgeProbe>,
     ) : HttpProbeClient {
@@ -522,6 +551,18 @@ class BridgeConnectionCoordinatorTest {
                 command.run()
             } else {
                 queuedTasks.addLast { command.run() }
+            }
+        }
+    }
+
+    private class SwitchingExecutor : Executor {
+        var runAsync = false
+
+        override fun execute(command: Runnable) {
+            if (runAsync) {
+                Thread(command, "bridge-test-executor").start()
+            } else {
+                command.run()
             }
         }
     }

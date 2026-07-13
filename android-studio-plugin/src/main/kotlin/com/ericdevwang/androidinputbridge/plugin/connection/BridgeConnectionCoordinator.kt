@@ -134,9 +134,7 @@ class BridgeConnectionCoordinator(
             listeners.clear()
             probe
         }
-        runCatching {
-            probeToClose?.close()
-        }
+        probeToClose?.let(::closeProbeAsync)
     }
 
     private fun runReconnect() {
@@ -483,6 +481,22 @@ class BridgeConnectionCoordinator(
             executor.execute(task)
         } catch (exception: RuntimeException) {
             finishError("Background task could not be scheduled.")
+        }
+    }
+
+    private fun closeProbeAsync(probe: HttpProbeClient) {
+        val closeTask = Runnable {
+            runCatching { probe.close() }
+                .onFailure { BridgeLog.failure("HTTP client close", it) }
+        }
+        try {
+            executor.execute(closeTask)
+        } catch (exception: RuntimeException) {
+            BridgeLog.failure("HTTP client close scheduling", exception)
+            Thread(closeTask, "android-input-bridge-http-close").apply {
+                isDaemon = true
+                start()
+            }
         }
     }
 

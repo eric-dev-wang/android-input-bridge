@@ -1,11 +1,26 @@
 package com.ericdevwang.androidinputbridge.plugin.adb
 
 import java.nio.file.Path
+import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 
 class ProcessAdbClientTest {
+    @Test
+    fun processRunnerReturnsAfterTimeoutEvenWhenChildKeepsStreamsOpen() {
+        assumeFalse(System.getProperty("os.name").contains("win", ignoreCase = true))
+        val runner = ProcessAdbCommandRunner(Path.of("/bin/sh"), timeout = Duration.ofMillis(100))
+        val startedAt = System.nanoTime()
+
+        val result = runner.run(listOf("-c", "sleep 10 & wait"))
+
+        val elapsedMillis = Duration.ofNanos(System.nanoTime() - startedAt).toMillis()
+        assertTrue(result.timedOut)
+        assertTrue("ADB process exceeded its timeout: ${elapsedMillis}ms", elapsedMillis < 2_000)
+    }
+
     @Test
     fun devicesRunsDevicesLongCommandAndParsesReadyDevices() {
         val runner = RecordingCommandRunner(

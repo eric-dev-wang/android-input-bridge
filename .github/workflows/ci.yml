@@ -31,6 +31,9 @@ jobs:
         shell: bash
         run: sdkmanager "platform-tools" "platforms;android-37"
 
+      - name: Verify version rules
+        run: ./gradlew --no-configuration-cache verifyBridgeVersion
+
       - name: Run verification matrix
         run: >-
           ./gradlew

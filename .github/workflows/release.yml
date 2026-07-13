@@ -38,7 +38,7 @@ jobs:
         env:
           TAG_NAME: ${{ github.ref_name }}
         run: |
-          if [[ "$TAG_NAME" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          if [[ "$TAG_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             major="${BASH_REMATCH[1]}"
             minor="${BASH_REMATCH[2]}"
             patch="${BASH_REMATCH[3]}"
@@ -48,9 +48,20 @@ jobs:
           fi
 
           version="$major.$minor.$patch"
+          if (( major > 2100000000 || minor > 2100000000 || patch > 2100000000 )); then
+            echo "Tag components are too large for Android versionCode." >&2
+            exit 1
+          fi
           version_code=$((major * 1000000 + minor * 1000 + patch))
+          if (( version_code < 1 || version_code > 2100000000 )); then
+            echo "Tag produces an Android versionCode outside the supported range: $version_code" >&2
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version rules
+        run: ./gradlew --no-configuration-cache verifyBridgeVersion
 
       - name: Run verification matrix
         run: >-
