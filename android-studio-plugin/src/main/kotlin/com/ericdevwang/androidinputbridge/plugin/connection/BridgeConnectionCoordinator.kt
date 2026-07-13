@@ -15,6 +15,7 @@ import com.intellij.openapi.Disposable
 import java.nio.file.Path
 import java.time.Instant
 import java.util.concurrent.Executor
+import java.util.concurrent.RejectedExecutionException
 
 class BridgeConnectionCoordinator(
     private val adbLocator: AdbLocator,
@@ -42,6 +43,11 @@ class BridgeConnectionCoordinator(
     @Volatile
     private var busy = false
 
+    private data class StateNotification(
+        val state: BridgeState,
+        val listeners: List<(BridgeState) -> Unit>,
+    )
+
     override var state: BridgeState = BridgeState()
         private set
 
@@ -59,40 +65,51 @@ class BridgeConnectionCoordinator(
     }
 
     override fun reconnect() {
-        synchronized(lock) {
+        val notification = synchronized(lock) {
             if (disposed || busy) return
             busy = true
-            publishLocked(state.copy(isBusy = true, errorMessage = null))
+            val newState = state.copy(isBusy = true, errorMessage = null)
+            StateNotification(newState, publishLocked(newState))
         }
-        executor.execute { runReconnect() }
+        notifyListeners(notification)
+        submit { runReconnect() }
     }
 
     override fun refresh() {
-        synchronized(lock) {
+        val notification = synchronized(lock) {
             if (disposed || busy) return
             busy = true
-            publishLocked(state.copy(isBusy = true, errorMessage = null))
+            val newState = state.copy(isBusy = true, errorMessage = null)
+            StateNotification(newState, publishLocked(newState))
         }
-        executor.execute { runRefresh() }
+        notifyListeners(notification)
+        submit { runRefresh() }
     }
 
     override fun selectDevice(serial: String) {
-        val shouldReconnect = synchronized(lock) {
+        val notification = synchronized(lock) {
             if (disposed || busy || state.devices.none { it.serial == serial }) return
             selectedSerial = serial
-            publishLocked(state.copy(selectedSerial = serial, errorMessage = null))
-            true
+            val newState = state.copy(selectedSerial = serial, errorMessage = null)
+            StateNotification(newState, publishLocked(newState))
         }
-        if (shouldReconnect) reconnect()
+        notifyListeners(notification)
+        reconnect()
     }
 
     override fun dispose() {
-        synchronized(lock) {
+        val probeToClose = synchronized(lock) {
+            if (disposed) return
             disposed = true
             busy = false
             activeAdbClient = null
+            val probe = activeProbeClient
             activeProbeClient = null
             listeners.clear()
+            probe
+        }
+        runCatching {
+            probeToClose?.close()
         }
     }
 
@@ -162,8 +179,7 @@ class BridgeConnectionCoordinator(
                 is AdbResult.Success -> Unit
             }
 
-            val probe = httpProbeClientFactory()
-            activeProbeClient = probe
+            val probe = getOrCreateProbe() ?: return
             when (val result = probe.probe()) {
                 is HttpProbeResult.Success -> finishConnected(result.value)
                 is HttpProbeResult.Failure -> {
@@ -200,6 +216,20 @@ class BridgeConnectionCoordinator(
         } catch (exception: Exception) {
             finishError(exception.message ?: "Unexpected refresh error.")
         }
+    }
+
+    private fun getOrCreateProbe(): HttpProbeClient? {
+        synchronized(lock) {
+            if (disposed) return null
+            activeProbeClient?.let { return it }
+        }
+
+        val created = httpProbeClientFactory()
+        val selected = synchronized(lock) {
+            if (disposed) null else activeProbeClient ?: created.also { activeProbeClient = it }
+        }
+        if (selected !== created) created.close()
+        return selected
     }
 
     private fun finishConnected(probe: BridgeProbe) {
@@ -262,20 +292,37 @@ class BridgeConnectionCoordinator(
     }
 
     private fun finish(newState: BridgeState) {
-        synchronized(lock) {
+        val notification = synchronized(lock) {
             if (disposed) return
             busy = false
-            publishLocked(newState.copy(isBusy = false))
+            val finishedState = newState.copy(isBusy = false)
+            StateNotification(finishedState, publishLocked(finishedState))
         }
+        notifyListeners(notification)
     }
 
     private fun publish(newState: BridgeState) {
-        synchronized(lock) { publishLocked(newState) }
+        val notification = synchronized(lock) {
+            if (disposed) return
+            StateNotification(newState, publishLocked(newState))
+        }
+        notifyListeners(notification)
     }
 
-    private fun publishLocked(newState: BridgeState) {
+    private fun publishLocked(newState: BridgeState): List<(BridgeState) -> Unit> {
         state = newState
-        val snapshot = listeners.toList()
-        snapshot.forEach { it(newState) }
+        return listeners.toList()
+    }
+
+    private fun notifyListeners(notification: StateNotification) {
+        notification.listeners.forEach { it(notification.state) }
+    }
+
+    private fun submit(task: () -> Unit) {
+        try {
+            executor.execute(task)
+        } catch (exception: RejectedExecutionException) {
+            finishError("Background task could not be scheduled.")
+        }
     }
 }

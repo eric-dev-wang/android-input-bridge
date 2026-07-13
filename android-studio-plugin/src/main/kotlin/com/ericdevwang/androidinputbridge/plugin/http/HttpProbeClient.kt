@@ -17,9 +17,11 @@ data class HttpResponse(
     val body: String,
 )
 
-fun interface HttpProbeTransport {
+fun interface HttpProbeTransport : AutoCloseable {
     @Throws(IOException::class)
     fun get(path: String): HttpResponse
+
+    override fun close() = Unit
 }
 
 enum class ProbeFailureCategory {
@@ -45,16 +47,22 @@ data class BridgeProbe(
     val text: TextResponse,
 )
 
-interface HttpProbeClient {
+interface HttpProbeClient : AutoCloseable {
     fun probe(): HttpProbeResult<BridgeProbe>
 
     fun fetchText(): HttpProbeResult<TextResponse>
+
+    override fun close() = Unit
 }
 
 class JdkHttpProbeClient(
     private val transport: HttpProbeTransport,
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) : HttpProbeClient {
+    override fun close() {
+        transport.close()
+    }
+
     override fun probe(): HttpProbeResult<BridgeProbe> {
         val health = when (val result = request<HealthResponse>(HEALTH_PATH, requireHttp200 = true)) {
             is HttpProbeResult.Failure -> return result
@@ -131,6 +139,10 @@ class JdkHttpProbeTransport(
     private val baseUri: URI,
     private val requestTimeout: Duration = Duration.ofSeconds(2),
 ) : HttpProbeTransport {
+    override fun close() {
+        httpClient.close()
+    }
+
     override fun get(path: String): HttpResponse {
         val request = HttpRequest.newBuilder(baseUri.resolve(path.removePrefix("/")))
             .timeout(requestTimeout)

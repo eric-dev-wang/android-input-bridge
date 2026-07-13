@@ -17,6 +17,9 @@ import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import java.nio.file.Path
 import java.time.Instant
 import java.util.concurrent.Executor
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -94,19 +97,85 @@ class BridgeConnectionCoordinatorTest {
         assertEquals(listOf("create:first", "remove:first", "create:second"), adb.actions)
     }
 
+    @Test
+    fun reconnectReusesProbeClientAndClosesItWhenDisposed() {
+        val device = AdbDevice("serial", "Pixel 8")
+        val adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(device))))
+        val probe = ClosableSuccessfulProbe()
+        var factoryCalls = 0
+        val coordinator = newCoordinator(
+            adb = adb,
+            probe = probe,
+            probeFactory = {
+                factoryCalls++
+                probe
+            },
+        )
+
+        coordinator.reconnect()
+        coordinator.reconnect()
+        coordinator.dispose()
+
+        assertEquals(1, factoryCalls)
+        assertEquals(1, probe.closeCalls)
+    }
+
+    @Test
+    fun listenerNotificationDoesNotHoldCoordinatorLock() {
+        val device = AdbDevice("serial", "Pixel 8")
+        val coordinator = newCoordinator(
+            adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(device)))),
+            probe = SuccessfulProbe(),
+        )
+        val listenerEntered = CountDownLatch(1)
+        val reentrantOperationCompleted = CountDownLatch(1)
+        coordinator.addListener { state ->
+            if (state.isBusy) {
+                Thread {
+                    coordinator.addListener { }
+                    reentrantOperationCompleted.countDown()
+                }.start()
+                listenerEntered.countDown()
+                assertTrue(reentrantOperationCompleted.await(1, TimeUnit.SECONDS))
+            }
+        }
+
+        coordinator.reconnect()
+
+        assertTrue(listenerEntered.await(1, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun rejectedExecutorClearsBusyState() {
+        val device = AdbDevice("serial", "Pixel 8")
+        val coordinator = newCoordinator(
+            adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(device)))),
+            probe = SuccessfulProbe(),
+            executor = Executor { throw RejectedExecutionException("executor closed") },
+        )
+
+        coordinator.reconnect()
+
+        assertFalse(coordinator.state.isBusy)
+        assertEquals(BridgeConnectionState.ERROR, coordinator.state.connectionState)
+        assertTrue(coordinator.state.errorMessage!!.contains("scheduled"))
+    }
+
     private fun newCoordinator(
         adb: FakeAdbClient,
         probe: HttpProbeClient,
         selector: DeviceSelector = DeviceSelector { it.first() },
+        probeFactory: () -> HttpProbeClient = { probe },
+        executor: Executor = Executor { it.run() },
     ): BridgeConnectionCoordinator = BridgeConnectionCoordinator(
         adbLocator = AdbLocator(
             configuredAdbProvider = { Path.of("/adb") },
             isUsable = { true },
         ),
         adbClientFactory = { adb },
-        httpProbeClientFactory = { probe },
+        httpProbeClientFactory = probeFactory,
         deviceSelector = selector,
-        executor = Executor { it.run() },
+        executor = executor,
         clock = { Instant.parse("2026-07-13T12:00:00Z") },
     )
 
@@ -135,11 +204,19 @@ class BridgeConnectionCoordinatorTest {
         }
     }
 
-    private class SuccessfulProbe : HttpProbeClient {
+    private open class SuccessfulProbe : HttpProbeClient {
         override fun probe(): HttpProbeResult<BridgeProbe> =
             HttpProbeResult.Success(BridgeProbe(healthResponse(), textResponse()))
 
         override fun fetchText(): HttpProbeResult<TextResponse> = HttpProbeResult.Success(textResponse())
+    }
+
+    private class ClosableSuccessfulProbe : SuccessfulProbe() {
+        var closeCalls = 0
+
+        override fun close() {
+            closeCalls++
+        }
     }
 
     private class SequencedProbe(
