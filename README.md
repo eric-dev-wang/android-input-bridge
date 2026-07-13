@@ -54,8 +54,8 @@ Android Studio 插件：
 - 提供 `Android Input Bridge` Tool Window。
 - 定位 ADB、检测设备并建立端口转发。
 - 读取 Android App 的 HTTP API 并展示当前文本。
-- 支持 Refresh、Copy、Copy & Clear 和 Reconnect。
-- 只向系统剪贴板写入用户明确选择的文本。
+- 支持 Refresh、设备选择和 Reconnect。
+- Phase 4 暂不接入剪贴板操作；Copy 和 Copy & Clear 将在后续阶段实现。
 
 ## 明确不做的事情
 
@@ -78,7 +78,7 @@ Android Studio 插件：
 └── android-studio-plugin/
 ```
 
-`app/`、`protocol/` 和 `android-studio-plugin/` 属于同一个 Gradle 项目。`protocol/` 只包含 HTTP wire model、序列化配置和协议常量，不依赖 Android、Ktor Server 或 IntelliJ Platform。Phase 3 的插件模块当前提供 Tool Window 静态 UI 和内存 Mock 状态，真实 ADB、HTTP Client 和系统剪贴板接入留到后续阶段。
+`app/`、`protocol/` 和 `android-studio-plugin/` 属于同一个 Gradle 项目。`protocol/` 只包含 HTTP wire model、序列化配置和协议常量，不依赖 Android、Ktor Server 或 IntelliJ Platform。插件当前已接入 ADB 发现、设备选择、端口转发、HTTP health/text 探测和重连流程；剪贴板操作留到后续阶段。
 
 ## 构建入口
 
@@ -118,11 +118,11 @@ Gradle wrapper 位于仓库根目录。插件构建默认使用 Android Studio 2
 1. Android 基础输入、版本号和本地持久化。
 2. Android 本地 HTTP Server 和 version conflict。
 3. 插件 Tool Window 静态 UI。
-4. ADB 定位、设备检测、forward 和重连。
-5. HTTP Client、剪贴板和 Copy & Clear 完整链路。
+4. ADB 定位、设备检测、forward、HTTP 探测和重连。
+5. 剪贴板和 Copy & Clear 完整链路。
 6. 超时、错误处理、日志脱敏、设置持久化和测试。
 
-每个阶段都必须能够独立构建和验证；实现前先输出计划，完成阶段后运行对应测试和构建检查。Phase 3 目标平台为 Android Studio 2026.1.1（Quail 1，IntelliJ Platform build branch 261），插件使用 Java 21。
+每个阶段都必须能够独立构建和验证；实现前先输出计划，完成阶段后运行对应测试和构建检查。Phase 4 目标平台为 Android Studio 2026.1.1（IntelliJ Platform build branch 261），插件使用 Java 21。
 
 ## MVP 完成标准
 
