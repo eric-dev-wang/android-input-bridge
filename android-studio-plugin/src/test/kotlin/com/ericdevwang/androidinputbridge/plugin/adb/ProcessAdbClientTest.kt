@@ -43,6 +43,24 @@ class ProcessAdbClientTest {
     }
 
     @Test
+    fun timedOutCommandReturnsBoundedFailure() {
+        val runner = RecordingCommandRunner(
+            AdbCommandResult(
+                exitCode = null,
+                stdout = "",
+                stderr = "",
+                timedOut = true,
+            ),
+        )
+        val client = ProcessAdbClient(Path.of("/adb"), runner)
+
+        val result = client.devices()
+
+        assertEquals("ADB command timed out after 5 seconds.", (result as AdbResult.Failure).error.message)
+        assertTrue(result.error.timedOut)
+    }
+
+    @Test
     fun listForwardsParsesSerialAndPorts() {
         val runner = RecordingCommandRunner(
             AdbCommandResult(

@@ -341,6 +341,41 @@ class BridgeConnectionCoordinatorTest {
         assertTrue(clipboard.writes.isEmpty())
     }
 
+    @Test
+    fun duplicateRefreshIsIgnoredWhileFirstRefreshIsBusy() {
+        val executor = FirstTaskImmediateExecutor()
+        val probe = RecordingProbe()
+        val coordinator = newCoordinator(
+            probe = probe,
+            executor = executor,
+        )
+        coordinator.reconnect()
+
+        coordinator.refresh()
+        coordinator.refresh()
+
+        assertEquals(1, executor.queuedTasks.size)
+        executor.queuedTasks.removeFirst().invoke()
+        assertEquals(1, probe.fetchCalls)
+    }
+
+    @Test
+    fun disposedCoordinatorIgnoresLateRefreshResult() {
+        val executor = FirstTaskImmediateExecutor()
+        val probe = RecordingProbe()
+        val coordinator = newCoordinator(
+            probe = probe,
+            executor = executor,
+        )
+        coordinator.reconnect()
+        coordinator.refresh()
+        coordinator.dispose()
+
+        executor.queuedTasks.removeFirst().invoke()
+
+        assertEquals(0, probe.fetchCalls)
+    }
+
     private fun newCoordinator(
         adb: FakeAdbClient = FakeAdbClient(
             deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8")))),
