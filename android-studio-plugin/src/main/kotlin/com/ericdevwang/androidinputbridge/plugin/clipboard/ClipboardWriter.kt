@@ -2,7 +2,6 @@ package com.ericdevwang.androidinputbridge.plugin.clipboard
 
 import com.intellij.openapi.ide.CopyPasteManager
 import java.awt.datatransfer.StringSelection
-import javax.swing.SwingUtilities
 
 interface ClipboardWriter {
     fun write(text: String): ClipboardWriteResult
@@ -23,20 +22,11 @@ fun interface ClipboardSink {
 
 class IntellijClipboardWriter(
     private val sink: ClipboardSink = CopyPasteManagerSink(),
-    private val runOnEdt: ((() -> Unit) -> Unit) = ::runOnEdt,
 ) : ClipboardWriter {
     override fun write(text: String): ClipboardWriteResult {
-        var failure: Throwable? = null
         return try {
-            runOnEdt {
-                try {
-                    sink.setContents(StringSelection(text))
-                } catch (exception: Throwable) {
-                    failure = exception
-                }
-            }
-            failure?.let { ClipboardWriteResult.Failure(FAILURE_MESSAGE, it) }
-                ?: ClipboardWriteResult.Success
+            sink.setContents(StringSelection(text))
+            ClipboardWriteResult.Success
         } catch (exception: Throwable) {
             ClipboardWriteResult.Failure(FAILURE_MESSAGE, exception)
         }
@@ -50,13 +40,5 @@ class IntellijClipboardWriter(
 
     private companion object {
         const val FAILURE_MESSAGE = "Clipboard write failed."
-
-        fun runOnEdt(action: () -> Unit) {
-            if (SwingUtilities.isEventDispatchThread()) {
-                action()
-            } else {
-                SwingUtilities.invokeAndWait(action)
-            }
-        }
     }
 }
