@@ -13,6 +13,7 @@ import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeClient
 import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeResult
 import com.ericdevwang.androidinputbridge.plugin.http.ProbeError
 import com.ericdevwang.androidinputbridge.plugin.http.ProbeFailureCategory
+import com.ericdevwang.androidinputbridge.plugin.logging.BridgeLog
 import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import com.intellij.openapi.Disposable
 import java.nio.file.Path
@@ -385,6 +386,7 @@ class BridgeConnectionCoordinator(
     }
 
     private fun finishConnected(probe: BridgeProbe) {
+        BridgeLog.textFetched(version = probe.text.version, length = probe.text.text.length)
         finish(
             state.copy(
                 connectionState = BridgeConnectionState.CONNECTED,
@@ -399,6 +401,7 @@ class BridgeConnectionCoordinator(
     }
 
     private fun finishText(text: TextResponse) {
+        BridgeLog.textFetched(version = text.version, length = text.text.length)
         finish(
             state.copy(
                 connectionState = BridgeConnectionState.CONNECTED,

@@ -1,6 +1,7 @@
 package com.ericdevwang.androidinputbridge.plugin.adb
 
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeNetworkConfig
+import com.ericdevwang.androidinputbridge.plugin.logging.BridgeLog
 import java.nio.file.Path
 
 data class PortForward(
@@ -40,6 +41,7 @@ class ProcessAdbClient(
         transform: (AdbCommandResult) -> T,
     ): AdbResult<T> {
         val result = commandRunner.run(command)
+        BridgeLog.adbCommand(command.firstOrNull().orEmpty(), result.exitCode, result.timedOut)
         if (result.timedOut || result.exitCode != 0) {
             return AdbResult.Failure(
                 AdbError(

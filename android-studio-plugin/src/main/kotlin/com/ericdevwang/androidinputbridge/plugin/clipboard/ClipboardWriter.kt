@@ -1,6 +1,7 @@
 package com.ericdevwang.androidinputbridge.plugin.clipboard
 
 import com.intellij.openapi.ide.CopyPasteManager
+import com.ericdevwang.androidinputbridge.plugin.logging.BridgeLog
 import java.awt.datatransfer.StringSelection
 
 interface ClipboardWriter {
@@ -26,8 +27,10 @@ class IntellijClipboardWriter(
     override fun write(text: String): ClipboardWriteResult {
         return try {
             sink.setContents(StringSelection(text))
+            BridgeLog.clipboardWrite(success = true)
             ClipboardWriteResult.Success
         } catch (exception: Throwable) {
+            BridgeLog.clipboardWrite(success = false, exception = exception)
             ClipboardWriteResult.Failure(FAILURE_MESSAGE, exception)
         }
     }

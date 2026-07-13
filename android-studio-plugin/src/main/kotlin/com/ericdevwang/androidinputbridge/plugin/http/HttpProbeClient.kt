@@ -5,6 +5,7 @@ import com.ericdevwang.androidinputbridge.protocol.ClearResponse
 import com.ericdevwang.androidinputbridge.protocol.ProtocolConstants
 import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeNetworkConfig
+import com.ericdevwang.androidinputbridge.plugin.logging.BridgeLog
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -177,6 +178,7 @@ class JdkHttpProbeTransport(
             .build()
         return try {
             val response = httpClient.send(request, JdkHttpResponse.BodyHandlers.ofString())
+            BridgeLog.httpResponse(request.method(), path, response.statusCode())
             HttpResponse(statusCode = response.statusCode(), body = response.body())
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()

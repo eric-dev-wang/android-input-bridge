@@ -22,6 +22,7 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.CancellationException
+import android.util.Log
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import kotlinx.serialization.json.Json
@@ -57,7 +58,9 @@ class InputHttpServer(
             host = config.host,
             port = config.port,
             module = { module(repository) },
-        ).start(wait = false)
+        ).start(wait = false).also {
+            Log.i(TAG, "Listening on ${config.host}:${config.port}")
+        }
     }
 
     @Synchronized
@@ -65,6 +68,7 @@ class InputHttpServer(
         val currentEngine = engine ?: return
         engine = null
         currentEngine.stop(gracePeriodMillis = 1_000, timeoutMillis = 2_000)
+        Log.i(TAG, "Stopped on ${config.host}:${config.port}")
     }
 }
 
@@ -185,3 +189,5 @@ private suspend fun io.ktor.server.application.ApplicationCall.respondError(
 ) {
     respond(status, ErrorResponse(code, message, details))
 }
+
+private const val TAG = "InputHttpServer"
