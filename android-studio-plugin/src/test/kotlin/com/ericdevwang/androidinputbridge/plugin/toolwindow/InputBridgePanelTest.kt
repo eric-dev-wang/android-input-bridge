@@ -1,79 +1,100 @@
 package com.ericdevwang.androidinputbridge.plugin.toolwindow
 
-import com.ericdevwang.androidinputbridge.plugin.mock.MockBridgeStateStore
-import com.ericdevwang.androidinputbridge.plugin.mock.MockFeedback
-import com.ericdevwang.androidinputbridge.plugin.mock.MockConnectionState
+import com.ericdevwang.androidinputbridge.plugin.adb.AdbDevice
+import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionController
+import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionState
+import com.ericdevwang.androidinputbridge.plugin.connection.BridgeState
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.swing.SwingUtilities
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class InputBridgePanelTest {
     @Test
-    fun panelExposesExpectedControlsAndDefaultState() {
-        val panel = InputBridgePanel(MockBridgeStateStore(clock = { Instant.parse("2026-07-13T12:00:00Z") }))
+    fun panelStartsIdleAndDisablesOutOfScopeClipboardActions() = onEdt {
+        val panel = InputBridgePanel(FakeController())
 
-        assertNotNull(panel.refreshButton)
-        assertNotNull(panel.copyButton)
-        assertNotNull(panel.copyAndClearButton)
-        assertNotNull(panel.reconnectButton)
-        assertTrue(panel.textArea.text.contains("你好"))
-        assertTrue(panel.copyButton.isEnabled)
-    }
-
-    @Test
-    fun copyKeepsDisplayedTextAndShowsCopiedFeedback() {
-        val store = MockBridgeStateStore(clock = { Instant.parse("2026-07-13T12:00:00Z") })
-        val panel = InputBridgePanel(store)
-        val originalText = panel.textArea.text
-        val originalVersion = store.state.version
-
-        runOnEdt { panel.copyButton.doClick() }
-
-        assertEquals(originalText, panel.textArea.text)
-        assertEquals(originalVersion, store.state.version)
-        assertEquals(MockFeedback.COPIED, store.state.feedback)
-    }
-
-    @Test
-    fun copyAndClearDisablesCopyAfterTextIsCleared() {
-        val store = MockBridgeStateStore(clock = { Instant.parse("2026-07-13T12:00:00Z") })
-        val panel = InputBridgePanel(store)
-
-        runOnEdt { panel.copyAndClearButton.doClick() }
-
-        assertEquals("", panel.textArea.text)
+        assertEquals("Status: Idle", panel.statusTextLabel.text)
         assertFalse(panel.copyButton.isEnabled)
         assertFalse(panel.copyAndClearButton.isEnabled)
-        assertEquals("Copied and cleared", panel.feedbackLabel.text)
     }
 
     @Test
-    fun panelRendersInjectedConnectionState() {
-        val store = MockBridgeStateStore(clock = { Instant.parse("2026-07-13T12:00:00Z") })
-        val panel = InputBridgePanel(store)
-        store.replaceState(store.state.copy(connectionState = MockConnectionState.SERVER_OFFLINE))
+    fun panelRendersConnectionStateAndDeviceOptions() = onEdt {
+        val controller = FakeController()
+        val panel = InputBridgePanel(controller)
+        controller.replace(
+            BridgeState(
+                connectionState = BridgeConnectionState.CONNECTED,
+                devices = listOf(AdbDevice("serial", "Pixel 8")),
+                selectedSerial = "serial",
+                adbStatus = "Available",
+                forwardStatus = "Forwarding localhost:18080 → device:18080",
+                serverStatus = "Online",
+                text = "你好\n👋",
+                version = 17,
+                lastRefresh = Instant.parse("2026-07-13T12:00:00Z"),
+            ),
+        )
 
-        assertEquals("Status: Server offline", panel.statusTextLabel.text)
-        assertFalse(panel.copyButton.isEnabled)
+        assertEquals("Status: Connected", panel.statusTextLabel.text)
+        assertEquals("Pixel 8 (serial)", (panel.deviceSelector.selectedItem as AdbDevice).displayName)
+        assertEquals("你好\n👋", panel.textArea.text)
+        val expectedTime = DateTimeFormatter.ofPattern("HH:mm:ss")
+            .withZone(ZoneId.systemDefault())
+            .format(Instant.parse("2026-07-13T12:00:00Z"))
+        assertEquals("Last refresh: $expectedTime", panel.lastRefreshLabel.text)
+        assertTrue(panel.refreshButton.isEnabled)
         assertTrue(panel.reconnectButton.isEnabled)
+        assertFalse(panel.copyButton.isEnabled)
     }
 
     @Test
-    fun disposingPanelStopsFurtherRendering() {
-        val store = MockBridgeStateStore(clock = { Instant.parse("2026-07-13T12:00:00Z") })
-        val panel = InputBridgePanel(store)
-        val originalText = panel.textArea.text
+    fun disposingPanelStopsFurtherRendering() = onEdt {
+        val controller = FakeController()
+        val panel = InputBridgePanel(controller)
         panel.dispose()
-        store.replaceState(store.state.copy(text = "changed"))
+        controller.replace(BridgeState(text = "changed"))
 
-        assertEquals(originalText, panel.textArea.text)
+        assertEquals("", panel.textArea.text)
     }
 
-    private fun runOnEdt(action: () -> Unit) {
-        SwingUtilities.invokeAndWait(action)
+    private fun <T> onEdt(action: () -> T): T {
+        var result: T? = null
+        SwingUtilities.invokeAndWait { result = action() }
+        @Suppress("UNCHECKED_CAST")
+        return result as T
+    }
+
+    private class FakeController : BridgeConnectionController {
+        override var state: BridgeState = BridgeState()
+            private set
+        private val listeners = mutableListOf<(BridgeState) -> Unit>()
+
+        override fun addListener(listener: (BridgeState) -> Unit) {
+            listeners += listener
+            listener(state)
+        }
+
+        override fun removeListener(listener: (BridgeState) -> Unit) {
+            listeners -= listener
+        }
+
+        override fun reconnect() = Unit
+
+        override fun refresh() = Unit
+
+        override fun selectDevice(serial: String) = Unit
+
+        override fun dispose() = listeners.clear()
+
+        fun replace(newState: BridgeState) {
+            state = newState
+            listeners.toList().forEach { it(newState) }
+        }
     }
 }

@@ -10,9 +10,10 @@ import com.intellij.ui.content.ContentFactory
 class InputBridgeToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val service = project.service<InputBridgeProjectService>()
-        val panel = InputBridgePanel(service.mockStateStore)
+        val panel = InputBridgePanel(service.connectionController)
         val content = ContentFactory.getInstance().createContent(panel, null, false)
         content.setDisposer(panel)
         toolWindow.contentManager.addContent(content)
+        service.connectionController.reconnect()
     }
 }
