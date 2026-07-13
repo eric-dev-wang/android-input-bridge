@@ -27,10 +27,6 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK platform
-        shell: bash
-        run: sdkmanager "platform-tools" "platforms;android-37"
-
       - name: Verify version rules
         run: ./gradlew --no-configuration-cache verifyBridgeVersion
 
