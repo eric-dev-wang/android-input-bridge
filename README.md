@@ -93,6 +93,7 @@ Android Studio 插件：
 ./gradlew :protocol:test
 ./gradlew :android-studio-plugin:test
 ./gradlew :android-studio-plugin:buildPlugin
+./gradlew :android-studio-plugin:verifyPlugin
 ```
 
 如果本机已安装目标 Android Studio，可以使用本地安装验证插件，避免重复下载 IDE：
@@ -113,6 +114,27 @@ android-studio-plugin/build/distributions/
 
 Gradle wrapper 位于仓库根目录。插件构建默认使用 Android Studio 2026.1.1 Patch 2 的平台依赖；开发环境也可以通过 `androidStudioPath` 使用本机安装。
 
+## Phase 6 验证和发布
+
+Phase 6 使用固定配置：Android Server 和 ADB forward 都使用 `18080`；HTTP connect timeout 为 `1s`、request timeout 为 `2s`，ADB timeout 为 `5s`。插件不提供 Settings 页面，也不持久化设备选择或连接配置。
+
+CI 在 Pull Request 和推送到 `main` 时运行完整验证矩阵：
+
+```bash
+./gradlew :app:lintDebug :app:testDebugUnitTest :protocol:test \
+  :android-studio-plugin:test :android-studio-plugin:buildPlugin \
+  :android-studio-plugin:verifyPlugin
+```
+
+发布通过 `v<major>.<minor>.<patch>` Tag 触发，例如 `v1.2.3`。发布 Workflow 会先运行完整验证，然后创建 GitHub Release 并上传：
+
+```text
+android-input-bridge-v1.2.3-debug.apk
+android-input-bridge-plugin-v1.2.3.zip
+```
+
+Tag 版本同时用于 Android `versionName`、Android `versionCode` 和 Plugin 版本。非 Tag 本地构建使用 `0.0.0-SNAPSHOT`，Android `versionCode` 为 `1`。
+
 ## 开发顺序
 
 建议按以下阶段推进：
@@ -122,7 +144,7 @@ Gradle wrapper 位于仓库根目录。插件构建默认使用 Android Studio 2
 3. 插件 Tool Window 静态 UI。
 4. ADB 定位、设备检测、forward、HTTP 探测和重连。
 5. 剪贴板和 Copy & Clear 完整链路（已实现）。
-6. 超时、错误处理、日志脱敏、设置持久化和测试。
+6. 超时、错误处理、日志脱敏、稳定性测试、CI 和 Tag 发布。
 
 每个阶段都必须能够独立构建和验证；实现前先输出计划，完成阶段后运行对应测试和构建检查。Phase 5 目标平台为 Android Studio 2026.1.1（IntelliJ Platform build branch 261），插件使用 Java 21。
 
@@ -139,8 +161,10 @@ MVP 必须满足：
 - 中文、Emoji、多行文本和代码片段可以原样传输。
 - ADB 和 HTTP 请求不会阻塞 Android Studio UI 线程。
 - 日志不包含完整用户文本，且没有 Global Hotkey、SendInput 或电脑到手机的数据通道。
+- HTTP 和 ADB 操作使用固定超时；插件不提供设置页面或配置持久化。
 
 ## 文档
 
 - [完整需求说明](docs/requirements.md)
+- [HTTP API](docs/http-api.md)
 - [Git 提交规范](docs/git-commit-convention.md)
