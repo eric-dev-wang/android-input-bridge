@@ -10,6 +10,8 @@
     <depends>com.intellij.modules.androidstudio</depends>
     <depends>org.jetbrains.android</depends>
 
+    <notificationGroup id="Android Input Bridge" displayType="BALLOON" />
+
     <extensions defaultExtensionNs="com.intellij">
         <projectService serviceImplementation="com.ericdevwang.androidinputbridge.plugin.service.InputBridgeProjectService"/>
         <toolWindow

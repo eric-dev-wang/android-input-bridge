@@ -4,6 +4,7 @@ import com.ericdevwang.androidinputbridge.plugin.adb.AdbDevice
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionController
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionState
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeState
+import com.ericdevwang.androidinputbridge.plugin.notifications.InputBridgeNotifier
 import com.intellij.openapi.Disposable
 import java.awt.BorderLayout
 import java.awt.Font
@@ -27,6 +28,7 @@ import javax.swing.DefaultListCellRenderer
 
 class InputBridgePanel(
     private val controller: BridgeConnectionController,
+    private val notifier: InputBridgeNotifier = InputBridgeNotifier { },
 ) : JPanel(BorderLayout(0, 12)), Disposable {
     internal val refreshButton = JButton("Refresh")
     internal val copyButton = JButton("Copy")
@@ -47,6 +49,7 @@ class InputBridgePanel(
     private val lastRefreshFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     private var disposed = false
     private var updatingDeviceSelector = false
+    private var lastNotifiedFeedback: String? = null
     private val listener: (BridgeState) -> Unit = ::dispatchRender
 
     init {
@@ -56,6 +59,8 @@ class InputBridgePanel(
         add(createFooter(), BorderLayout.SOUTH)
 
         refreshButton.addActionListener { controller.refresh() }
+        copyButton.addActionListener { controller.copy() }
+        copyAndClearButton.addActionListener { controller.copyAndClear() }
         reconnectButton.addActionListener { controller.reconnect() }
         deviceSelector.renderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(
@@ -160,7 +165,11 @@ class InputBridgePanel(
         lastRefreshLabel.text = "Last refresh: ${state.lastRefresh?.atZone(ZoneId.systemDefault())?.format(lastRefreshFormatter) ?: "—"}"
         lengthLabel.text = "Length: ${state.text.length}"
         versionLabel.text = "Version: ${state.version ?: "—"}"
-        feedbackLabel.text = state.errorMessage.orEmpty()
+        feedbackLabel.text = (state.feedbackMessage ?: state.errorMessage).orEmpty()
+        if (state.feedbackMessage != null && state.feedbackMessage != lastNotifiedFeedback) {
+            notifier.notify(state.feedbackMessage)
+        }
+        lastNotifiedFeedback = state.feedbackMessage
 
         updatingDeviceSelector = true
         try {
@@ -173,8 +182,10 @@ class InputBridgePanel(
         }
 
         refreshButton.isEnabled = state.connectionState == BridgeConnectionState.CONNECTED && !state.isBusy
-        copyButton.isEnabled = false
-        copyAndClearButton.isEnabled = false
+        val hasText = state.text.isNotEmpty()
+        copyButton.isEnabled = state.connectionState == BridgeConnectionState.CONNECTED && hasText && !state.isBusy
+        copyAndClearButton.isEnabled =
+            state.connectionState == BridgeConnectionState.CONNECTED && hasText && state.version != null && !state.isBusy
         reconnectButton.isEnabled = !state.isBusy
         deviceSelector.isEnabled = state.devices.isNotEmpty() && !state.isBusy
     }

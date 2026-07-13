@@ -257,8 +257,8 @@ class BridgeConnectionCoordinator(
             )
             is ClipboardWriteResult.Failure -> finish(
                 state.copy(
-                    errorMessage = result.message,
-                    feedbackMessage = null,
+                    errorMessage = null,
+                    feedbackMessage = result.message,
                 ),
             )
         }
@@ -272,8 +272,8 @@ class BridgeConnectionCoordinator(
             is ClipboardWriteResult.Failure -> {
                 finish(
                     state.copy(
-                        errorMessage = clipboardResult.message,
-                        feedbackMessage = null,
+                        errorMessage = null,
+                        feedbackMessage = clipboardResult.message,
                     ),
                 )
                 return
@@ -338,8 +338,8 @@ class BridgeConnectionCoordinator(
                     text = refreshed.value.text,
                     version = refreshed.value.version,
                     lastRefresh = clock(),
-                    errorMessage = VERSION_CONFLICT_MESSAGE,
-                    feedbackMessage = null,
+                    errorMessage = null,
+                    feedbackMessage = VERSION_CONFLICT_MESSAGE,
                 ),
             )
             is HttpProbeResult.Failure -> finishClearFailure()
@@ -349,8 +349,8 @@ class BridgeConnectionCoordinator(
     private fun finishClearFailure() {
         finish(
             state.copy(
-                errorMessage = CLEAR_FAILURE_MESSAGE,
-                feedbackMessage = null,
+                errorMessage = null,
+                feedbackMessage = CLEAR_FAILURE_MESSAGE,
             ),
         )
     }

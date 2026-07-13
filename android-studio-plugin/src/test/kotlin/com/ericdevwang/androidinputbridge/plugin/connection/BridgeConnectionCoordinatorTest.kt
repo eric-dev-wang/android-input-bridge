@@ -204,7 +204,7 @@ class BridgeConnectionCoordinatorTest {
 
         assertEquals(0, probe.clearCalls)
         assertEquals("你好", coordinator.state.text)
-        assertEquals("Clipboard write failed.", coordinator.state.errorMessage)
+        assertEquals("Clipboard write failed.", coordinator.state.feedbackMessage)
     }
 
     @Test
@@ -249,7 +249,7 @@ class BridgeConnectionCoordinatorTest {
         assertEquals(1, probe.clearCalls)
         assertEquals("你好", coordinator.state.text)
         assertEquals(17L, coordinator.state.version)
-        assertEquals("Text was copied, but the phone content could not be cleared.", coordinator.state.errorMessage)
+        assertEquals("Text was copied, but the phone content could not be cleared.", coordinator.state.feedbackMessage)
     }
 
     @Test
@@ -276,7 +276,7 @@ class BridgeConnectionCoordinatorTest {
         assertEquals(18L, coordinator.state.version)
         assertEquals(
             "Text was copied, but the phone content changed and was not cleared.",
-            coordinator.state.errorMessage,
+            coordinator.state.feedbackMessage,
         )
     }
 
