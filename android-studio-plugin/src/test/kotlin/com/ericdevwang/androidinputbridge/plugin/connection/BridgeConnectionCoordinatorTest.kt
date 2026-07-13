@@ -13,6 +13,7 @@ import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeResult
 import com.ericdevwang.androidinputbridge.plugin.http.ProbeError
 import com.ericdevwang.androidinputbridge.plugin.http.ProbeFailureCategory
 import com.ericdevwang.androidinputbridge.protocol.HealthResponse
+import com.ericdevwang.androidinputbridge.protocol.ClearResponse
 import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import java.nio.file.Path
 import java.time.Instant
@@ -209,6 +210,9 @@ class BridgeConnectionCoordinatorTest {
             HttpProbeResult.Success(BridgeProbe(healthResponse(), textResponse()))
 
         override fun fetchText(): HttpProbeResult<TextResponse> = HttpProbeResult.Success(textResponse())
+
+        override fun clearText(expectedVersion: Long): HttpProbeResult<ClearResponse> =
+            HttpProbeResult.Success(ClearResponse(expectedVersion, expectedVersion + 1))
     }
 
     private class ClosableSuccessfulProbe : SuccessfulProbe() {
@@ -227,6 +231,9 @@ class BridgeConnectionCoordinatorTest {
         override fun probe(): HttpProbeResult<BridgeProbe> = results[probeCalls++].also { }
 
         override fun fetchText(): HttpProbeResult<TextResponse> = HttpProbeResult.Success(textResponse())
+
+        override fun clearText(expectedVersion: Long): HttpProbeResult<ClearResponse> =
+            HttpProbeResult.Success(ClearResponse(expectedVersion, expectedVersion + 1))
     }
 
     private class RefreshingProbe : HttpProbeClient {
@@ -245,6 +252,9 @@ class BridgeConnectionCoordinatorTest {
                 HttpProbeResult.Success(textResponse())
             }
         }
+
+        override fun clearText(expectedVersion: Long): HttpProbeResult<ClearResponse> =
+            HttpProbeResult.Success(ClearResponse(expectedVersion, expectedVersion + 1))
     }
 
     private companion object {
