@@ -1,5 +1,6 @@
 package com.ericdevwang.androidinputbridge.plugin.adb
 
+import com.ericdevwang.androidinputbridge.plugin.connection.BridgeNetworkConfig
 import java.nio.file.Path
 
 data class PortForward(
@@ -29,10 +30,10 @@ class ProcessAdbClient(
         runCommand(listOf("forward", "--list")) { parseForwards(it.stdout) }
 
     override fun createForward(serial: String): AdbResult<Unit> =
-        runCommand(listOf("-s", serial, "forward", "tcp:18080", "tcp:18080")) { }
+        runCommand(listOf("-s", serial, "forward", "tcp:${BridgeNetworkConfig.PORT}", "tcp:${BridgeNetworkConfig.PORT}")) { }
 
     override fun removeForward(serial: String): AdbResult<Unit> =
-        runCommand(listOf("-s", serial, "forward", "--remove", "tcp:18080")) { }
+        runCommand(listOf("-s", serial, "forward", "--remove", "tcp:${BridgeNetworkConfig.PORT}")) { }
 
     private fun <T> runCommand(
         command: List<String>,
@@ -43,7 +44,7 @@ class ProcessAdbClient(
             return AdbResult.Failure(
                 AdbError(
                     message = if (result.timedOut) {
-                        "ADB command timed out after 5 seconds."
+                        "ADB command timed out after ${BridgeNetworkConfig.ADB_TIMEOUT_SECONDS} seconds."
                     } else {
                         "ADB command failed with exit code ${result.exitCode}."
                     },

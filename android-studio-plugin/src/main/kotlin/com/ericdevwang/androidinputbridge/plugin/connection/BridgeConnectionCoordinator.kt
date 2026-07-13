@@ -190,7 +190,7 @@ class BridgeConnectionCoordinator(
                     devices = devices,
                     selectedSerial = selected.serial,
                     adbStatus = "Available",
-                    forwardStatus = "Forwarding localhost:18080 → device:18080",
+                    forwardStatus = "Forwarding ${BridgeNetworkConfig.HOST}:${BridgeNetworkConfig.PORT} → device:${BridgeNetworkConfig.PORT}",
                     serverStatus = "Checking",
                     errorMessage = null,
                 ),

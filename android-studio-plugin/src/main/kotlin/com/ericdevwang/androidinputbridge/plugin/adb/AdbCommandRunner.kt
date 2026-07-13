@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import com.ericdevwang.androidinputbridge.plugin.connection.BridgeNetworkConfig
 
 data class AdbCommandResult(
     val exitCode: Int?,
@@ -18,7 +19,7 @@ fun interface AdbCommandRunner {
 
 class ProcessAdbCommandRunner(
     private val adbPath: Path,
-    private val timeout: Duration = Duration.ofSeconds(5),
+    private val timeout: Duration = BridgeNetworkConfig.adbTimeout,
 ) : AdbCommandRunner {
     override fun run(arguments: List<String>): AdbCommandResult {
         val process = ProcessBuilder(listOf(adbPath.toString()) + arguments)
