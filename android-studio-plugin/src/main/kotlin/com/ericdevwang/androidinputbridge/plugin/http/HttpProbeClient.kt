@@ -1,8 +1,8 @@
 package com.ericdevwang.androidinputbridge.plugin.http
 
 import com.ericdevwang.androidinputbridge.protocol.HealthResponse
-import com.ericdevwang.androidinputbridge.protocol.ProtocolConstants
 import com.ericdevwang.androidinputbridge.protocol.ClearResponse
+import com.ericdevwang.androidinputbridge.protocol.ProtocolConstants
 import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import java.io.IOException
 import java.net.URI
@@ -38,6 +38,7 @@ data class ProbeError(
     val message: String,
     val retryable: Boolean,
     val cause: Throwable? = null,
+    val statusCode: Int? = null,
 )
 
 sealed interface HttpProbeResult<out T> {
@@ -125,7 +126,7 @@ class JdkHttpProbeClient(
             )
         }
         if ((requireHttp200 && response.statusCode != 200) || (!requireHttp200 && response.statusCode !in 200..299)) {
-            return invalidResponse("HTTP $path returned status ${response.statusCode}.")
+            return invalidResponse("HTTP $path returned status ${response.statusCode}.", response.statusCode)
         }
         return try {
             HttpProbeResult.Success(json.decodeFromString<T>(response.body))
@@ -141,12 +142,13 @@ class JdkHttpProbeClient(
         }
     }
 
-    private fun invalidResponse(message: String): HttpProbeResult.Failure =
+    private fun invalidResponse(message: String, statusCode: Int? = null): HttpProbeResult.Failure =
         HttpProbeResult.Failure(
             ProbeError(
                 category = ProbeFailureCategory.INVALID_RESPONSE,
                 message = message,
                 retryable = false,
+                statusCode = statusCode,
             ),
         )
 

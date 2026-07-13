@@ -7,6 +7,8 @@ import com.ericdevwang.androidinputbridge.plugin.adb.AdbLocator
 import com.ericdevwang.androidinputbridge.plugin.adb.AdbResult
 import com.ericdevwang.androidinputbridge.plugin.adb.DeviceSelector
 import com.ericdevwang.androidinputbridge.plugin.adb.PortForward
+import com.ericdevwang.androidinputbridge.plugin.clipboard.ClipboardWriteResult
+import com.ericdevwang.androidinputbridge.plugin.clipboard.ClipboardWriter
 import com.ericdevwang.androidinputbridge.plugin.http.BridgeProbe
 import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeClient
 import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeResult
@@ -162,12 +164,177 @@ class BridgeConnectionCoordinatorTest {
         assertTrue(coordinator.state.errorMessage!!.contains("scheduled"))
     }
 
+    @Test
+    fun copyUsesDisplayedSnapshotAndDoesNotCallHttp() {
+        val probe = RecordingProbe()
+        val clipboard = RecordingClipboardWriter()
+        val coordinator = newCoordinator(probe = probe, clipboardWriter = clipboard)
+        coordinator.reconnect()
+
+        coordinator.copy()
+
+        assertEquals(listOf("你好"), clipboard.writes)
+        assertEquals(0, probe.clearCalls)
+        assertEquals("你好", coordinator.state.text)
+        assertEquals("Copied", coordinator.state.feedbackMessage)
+    }
+
+    @Test
+    fun emptyCopyAndClearDoNotCallClipboardOrHttp() {
+        val probe = RecordingProbe(initialText = TextResponse("", 17, 1783780000000))
+        val clipboard = RecordingClipboardWriter()
+        val coordinator = newCoordinator(probe = probe, clipboardWriter = clipboard)
+        coordinator.reconnect()
+
+        coordinator.copyAndClear()
+
+        assertTrue(clipboard.writes.isEmpty())
+        assertEquals(0, probe.clearCalls)
+        assertEquals(17L, coordinator.state.version)
+    }
+
+    @Test
+    fun copyFailurePreventsClear() {
+        val probe = RecordingProbe()
+        val clipboard = RecordingClipboardWriter(ClipboardWriteResult.Failure("Clipboard write failed."))
+        val coordinator = newCoordinator(probe = probe, clipboardWriter = clipboard)
+        coordinator.reconnect()
+
+        coordinator.copyAndClear()
+
+        assertEquals(0, probe.clearCalls)
+        assertEquals("你好", coordinator.state.text)
+        assertEquals("Clipboard write failed.", coordinator.state.errorMessage)
+    }
+
+    @Test
+    fun copyAndClearWritesClipboardBeforeSendingClear() {
+        val events = mutableListOf<String>()
+        val probe = RecordingProbe(events = events)
+        val clipboard = RecordingClipboardWriter(events = events)
+        val coordinator = newCoordinator(probe = probe, clipboardWriter = clipboard)
+        coordinator.reconnect()
+
+        coordinator.copyAndClear()
+
+        assertEquals(listOf("clipboard:你好", "clear:17"), events)
+    }
+
+    @Test
+    fun successfulClearUpdatesLocalTextWithoutFetchingAgain() {
+        val probe = RecordingProbe()
+        val coordinator = newCoordinator(probe = probe, clipboardWriter = RecordingClipboardWriter())
+        coordinator.reconnect()
+
+        coordinator.copyAndClear()
+
+        assertEquals("", coordinator.state.text)
+        assertEquals(18L, coordinator.state.version)
+        assertEquals(0, probe.fetchCalls)
+        assertEquals("Copied and cleared", coordinator.state.feedbackMessage)
+    }
+
+    @Test
+    fun clearFailurePreservesDisplayedSnapshotWithoutRetry() {
+        val probe = RecordingProbe(
+            clearResult = HttpProbeResult.Failure(
+                ProbeError(ProbeFailureCategory.CONNECTION, "timeout", retryable = true),
+            ),
+        )
+        val coordinator = newCoordinator(probe = probe, clipboardWriter = RecordingClipboardWriter())
+        coordinator.reconnect()
+
+        coordinator.copyAndClear()
+
+        assertEquals(1, probe.clearCalls)
+        assertEquals("你好", coordinator.state.text)
+        assertEquals(17L, coordinator.state.version)
+        assertEquals("Text was copied, but the phone content could not be cleared.", coordinator.state.errorMessage)
+    }
+
+    @Test
+    fun versionConflictRefreshesTextOnceAndPreservesCopiedSnapshot() {
+        val probe = RecordingProbe(
+            clearResult = HttpProbeResult.Failure(
+                ProbeError(
+                    category = ProbeFailureCategory.INVALID_RESPONSE,
+                    message = "HTTP clear returned status 409.",
+                    retryable = false,
+                    statusCode = 409,
+                ),
+            ),
+            refreshedText = TextResponse("new text", 18, 1783780001000),
+        )
+        val coordinator = newCoordinator(probe = probe, clipboardWriter = RecordingClipboardWriter())
+        coordinator.reconnect()
+
+        coordinator.copyAndClear()
+
+        assertEquals(1, probe.clearCalls)
+        assertEquals(1, probe.fetchCalls)
+        assertEquals("new text", coordinator.state.text)
+        assertEquals(18L, coordinator.state.version)
+        assertEquals(
+            "Text was copied, but the phone content changed and was not cleared.",
+            coordinator.state.errorMessage,
+        )
+    }
+
+    @Test
+    fun allBridgeActionsAreIgnoredWhileCopyAndClearIsBusy() {
+        val executor = FirstTaskImmediateExecutor()
+        val adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8")))))
+        val probe = RecordingProbe()
+        val coordinator = newCoordinator(
+            adb = adb,
+            probe = probe,
+            clipboardWriter = RecordingClipboardWriter(),
+            executor = executor,
+        )
+        coordinator.reconnect()
+        val actionCount = adb.actions.size
+
+        coordinator.copyAndClear()
+        coordinator.refresh()
+        coordinator.reconnect()
+        coordinator.selectDevice("serial")
+
+        assertTrue(coordinator.state.isBusy)
+        assertEquals(actionCount, adb.actions.size)
+        assertEquals(1, executor.queuedTasks.size)
+
+        executor.queuedTasks.removeFirst().invoke()
+        assertFalse(coordinator.state.isBusy)
+    }
+
+    @Test
+    fun disposedCoordinatorIgnoresLateCopyResult() {
+        val executor = FirstTaskImmediateExecutor()
+        val clipboard = RecordingClipboardWriter()
+        val coordinator = newCoordinator(
+            adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8"))))),
+            probe = RecordingProbe(),
+            clipboardWriter = clipboard,
+            executor = executor,
+        )
+        coordinator.reconnect()
+        coordinator.copy()
+        coordinator.dispose()
+
+        executor.queuedTasks.removeFirst().invoke()
+
+        assertTrue(clipboard.writes.isEmpty())
+    }
+
     private fun newCoordinator(
-        adb: FakeAdbClient,
+        adb: FakeAdbClient = FakeAdbClient(
+            deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8")))),
+        ),
         probe: HttpProbeClient,
         selector: DeviceSelector = DeviceSelector { it.first() },
         probeFactory: () -> HttpProbeClient = { probe },
         executor: Executor = Executor { it.run() },
+        clipboardWriter: ClipboardWriter = RecordingClipboardWriter(),
     ): BridgeConnectionCoordinator = BridgeConnectionCoordinator(
         adbLocator = AdbLocator(
             configuredAdbProvider = { Path.of("/adb") },
@@ -177,6 +344,7 @@ class BridgeConnectionCoordinatorTest {
         httpProbeClientFactory = probeFactory,
         deviceSelector = selector,
         executor = executor,
+        clipboardWriter = clipboardWriter,
         clock = { Instant.parse("2026-07-13T12:00:00Z") },
     )
 
@@ -255,6 +423,57 @@ class BridgeConnectionCoordinatorTest {
 
         override fun clearText(expectedVersion: Long): HttpProbeResult<ClearResponse> =
             HttpProbeResult.Success(ClearResponse(expectedVersion, expectedVersion + 1))
+    }
+
+    private class RecordingClipboardWriter(
+        private val result: ClipboardWriteResult = ClipboardWriteResult.Success,
+        private val events: MutableList<String>? = null,
+    ) : ClipboardWriter {
+        val writes = mutableListOf<String>()
+
+        override fun write(text: String): ClipboardWriteResult {
+            writes += text
+            events?.add("clipboard:$text")
+            return result
+        }
+    }
+
+    private class RecordingProbe(
+        private val initialText: TextResponse = textResponse(),
+        private val clearResult: HttpProbeResult<ClearResponse> =
+            HttpProbeResult.Success(ClearResponse(17, 18)),
+        private val refreshedText: TextResponse = textResponse(),
+        private val events: MutableList<String>? = null,
+    ) : HttpProbeClient {
+        var clearCalls = 0
+        var fetchCalls = 0
+
+        override fun probe(): HttpProbeResult<BridgeProbe> =
+            HttpProbeResult.Success(BridgeProbe(healthResponse(), initialText))
+
+        override fun fetchText(): HttpProbeResult<TextResponse> {
+            fetchCalls++
+            return HttpProbeResult.Success(refreshedText)
+        }
+
+        override fun clearText(expectedVersion: Long): HttpProbeResult<ClearResponse> {
+            clearCalls++
+            events?.add("clear:$expectedVersion")
+            return clearResult
+        }
+    }
+
+    private class FirstTaskImmediateExecutor : Executor {
+        private var executions = 0
+        val queuedTasks = ArrayDeque<() -> Unit>()
+
+        override fun execute(command: Runnable) {
+            if (executions++ == 0) {
+                command.run()
+            } else {
+                queuedTasks.addLast { command.run() }
+            }
+        }
     }
 
     private companion object {
