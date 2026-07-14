@@ -1,5 +1,7 @@
 package com.ericdevwang.androidinputbridge.plugin.adb
 
+import com.ericdevwang.androidinputbridge.plugin.connection.BridgeNetworkConfig
+
 class PortForwardManager(
     private val adbClient: AdbClient,
 ) {
@@ -42,7 +44,7 @@ class PortForwardManager(
     }
 
     private companion object {
-        const val DESKTOP_PORT = 18080
-        const val ANDROID_PORT = 18080
+        const val DESKTOP_PORT = BridgeNetworkConfig.PORT
+        const val ANDROID_PORT = BridgeNetworkConfig.PORT
     }
 }

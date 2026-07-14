@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Validate release tag
+        id: version
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$TAG_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+            patch="${BASH_REMATCH[3]}"
+          else
+            echo "Tag must match v<major>.<minor>.<patch>: $TAG_NAME" >&2
+            exit 1
+          fi
+
+          version="$major.$minor.$patch"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Gradle release version
+        run: ./gradlew --no-configuration-cache -PbridgeVersion="${{ steps.version.outputs.version }}" help
+
+      - name: Verify version rules
+        run: ./gradlew --no-configuration-cache verifyBridgeVersion
+
+      - name: Run verification matrix
+        run: >-
+          ./gradlew
+          -PbridgeVersion=${{ steps.version.outputs.version }}
+          :app:lintDebug
+          :app:testDebugUnitTest
+          :protocol:test
+          :android-studio-plugin:test
+          :android-studio-plugin:buildPlugin
+          :android-studio-plugin:verifyPlugin
+
+      - name: Build release artifacts
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ./gradlew -PbridgeVersion="$VERSION" :app:assembleDebug :android-studio-plugin:buildPlugin
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/android-input-bridge-v$VERSION-debug.apk"
+
+          plugin_zip="$(find android-studio-plugin/build/distributions -maxdepth 1 -type f -name '*.zip' -print -quit)"
+          test -n "$plugin_zip"
+          cp "$plugin_zip" "dist/android-input-bridge-plugin-v$VERSION.zip"
+
+          ls -lh dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: >-
+          gh release create "$TAG_NAME"
+          dist/android-input-bridge-v$VERSION-debug.apk
+          dist/android-input-bridge-plugin-v$VERSION.zip
+          --title "Android Input Bridge $VERSION"
+          --generate-notes
+          --verify-tag

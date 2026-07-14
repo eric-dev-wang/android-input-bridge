@@ -124,6 +124,25 @@ class BridgeConnectionCoordinatorTest {
     }
 
     @Test
+    fun disposeSchedulesHttpClientCloseOffCallingThread() {
+        val executor = SwitchingExecutor()
+        val probe = ThreadTrackingClosableProbe()
+        val coordinator = newCoordinator(
+            adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8"))))),
+            probe = probe,
+            executor = executor,
+        )
+        coordinator.reconnect()
+        executor.runAsync = true
+        val disposingThread = Thread.currentThread()
+
+        coordinator.dispose()
+
+        assertTrue(probe.closeLatch.await(1, TimeUnit.SECONDS))
+        assertTrue(probe.closeThread !== disposingThread)
+    }
+
+    @Test
     fun listenerNotificationDoesNotHoldCoordinatorLock() {
         val device = AdbDevice("serial", "Pixel 8")
         val coordinator = newCoordinator(
@@ -155,6 +174,21 @@ class BridgeConnectionCoordinatorTest {
             adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(device)))),
             probe = SuccessfulProbe(),
             executor = Executor { throw RejectedExecutionException("executor closed") },
+        )
+
+        coordinator.reconnect()
+
+        assertFalse(coordinator.state.isBusy)
+        assertEquals(BridgeConnectionState.ERROR, coordinator.state.connectionState)
+        assertTrue(coordinator.state.errorMessage!!.contains("scheduled"))
+    }
+
+    @Test
+    fun runtimeExecutorFailureClearsBusyState() {
+        val coordinator = newCoordinator(
+            adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8"))))),
+            probe = SuccessfulProbe(),
+            executor = Executor { throw IllegalStateException("executor closed") },
         )
 
         coordinator.reconnect()
@@ -326,6 +360,41 @@ class BridgeConnectionCoordinatorTest {
         assertTrue(clipboard.writes.isEmpty())
     }
 
+    @Test
+    fun duplicateRefreshIsIgnoredWhileFirstRefreshIsBusy() {
+        val executor = FirstTaskImmediateExecutor()
+        val probe = RecordingProbe()
+        val coordinator = newCoordinator(
+            probe = probe,
+            executor = executor,
+        )
+        coordinator.reconnect()
+
+        coordinator.refresh()
+        coordinator.refresh()
+
+        assertEquals(1, executor.queuedTasks.size)
+        executor.queuedTasks.removeFirst().invoke()
+        assertEquals(1, probe.fetchCalls)
+    }
+
+    @Test
+    fun disposedCoordinatorIgnoresLateRefreshResult() {
+        val executor = FirstTaskImmediateExecutor()
+        val probe = RecordingProbe()
+        val coordinator = newCoordinator(
+            probe = probe,
+            executor = executor,
+        )
+        coordinator.reconnect()
+        coordinator.refresh()
+        coordinator.dispose()
+
+        executor.queuedTasks.removeFirst().invoke()
+
+        assertEquals(0, probe.fetchCalls)
+    }
+
     private fun newCoordinator(
         adb: FakeAdbClient = FakeAdbClient(
             deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8")))),
@@ -388,6 +457,16 @@ class BridgeConnectionCoordinatorTest {
 
         override fun close() {
             closeCalls++
+        }
+    }
+
+    private class ThreadTrackingClosableProbe : SuccessfulProbe() {
+        val closeLatch = CountDownLatch(1)
+        var closeThread: Thread? = null
+
+        override fun close() {
+            closeThread = Thread.currentThread()
+            closeLatch.countDown()
         }
     }
 
@@ -472,6 +551,18 @@ class BridgeConnectionCoordinatorTest {
                 command.run()
             } else {
                 queuedTasks.addLast { command.run() }
+            }
+        }
+    }
+
+    private class SwitchingExecutor : Executor {
+        var runAsync = false
+
+        override fun execute(command: Runnable) {
+            if (runAsync) {
+                Thread(command, "bridge-test-executor").start()
+            } else {
+                command.run()
             }
         }
     }

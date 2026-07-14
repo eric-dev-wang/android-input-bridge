@@ -4,6 +4,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import com.intellij.openapi.project.Project
+import com.ericdevwang.androidinputbridge.plugin.logging.BridgeLog
 import org.jetbrains.android.sdk.AndroidSdkUtils
 
 class AdbLocator(
@@ -15,9 +16,17 @@ class AdbLocator(
         Files.isRegularFile(path) && Files.isExecutable(path)
     },
 ) {
-    fun locate(): Path? = candidatePaths()
-        .distinct()
-        .firstOrNull(isUsable)
+    fun locate(): Path? {
+        val result = candidatePaths()
+            .distinct()
+            .firstOrNull(isUsable)
+        if (result == null) {
+            BridgeLog.failure("ADB discovery", IllegalStateException("No executable found"))
+        } else {
+            BridgeLog.adbCommand("locate:${result.fileName}", exitCode = 0, timedOut = false)
+        }
+        return result
+    }
 
     private fun candidatePaths(): Sequence<Path> = sequence {
         configuredAdbProvider()?.let { yield(it) }

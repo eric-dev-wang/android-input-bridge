@@ -11,8 +11,8 @@ android {
         applicationId = "com.ericdevwang.androidinputbridge"
         minSdk = 31
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = rootProject.extra["bridgeVersionCode"] as Int
+        versionName = rootProject.version.toString()
     }
 
     buildTypes {

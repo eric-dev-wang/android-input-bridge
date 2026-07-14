@@ -604,7 +604,7 @@ adb -s <serial> forward --remove tcp:18080
 
 - 无设备：显示 `No Android device connected.`。
 - 一个设备：自动选择。
-- 多个设备：提供下拉框选择，不能静默随机选择；保存最后一次选择的 serial。
+- 多个设备：提供下拉框选择，不能静默随机选择；设备选择只在当前插件会话内有效，不持久化 serial。
 - `unauthorized`：显示 `Device authorization required. Check the phone and accept the ADB prompt.`。
 - `offline`：显示 `Device is offline.`。
 
@@ -684,22 +684,16 @@ Toolkit.getDefaultToolkit().getSystemClipboard()
 - 不得每次刷新都执行 `adb forward`。
 - 文本 version 未变化时不更新 UI。
 
-插件设置位置：
+第一阶段和 Phase 6 不提供 Plugin Settings 页面，也不持久化 ADB 路径、设备 serial、端口、超时或连接偏好。
 
-```text
-Settings → Tools → Android Input Bridge
-```
-
-建议支持：ADB executable path、Device serial、Desktop forward port、Android server port、Request timeout、打开 Tool Window 时自动连接、打开 Tool Window 时自动刷新。
-
-默认值：
+固定运行时配置：
 
 ```text
 Desktop port: 18080
 Android port: 18080
-Auto connect: true
-Auto refresh on open: true
-Continuous polling: false
+HTTP connect timeout: 1 second
+HTTP request timeout: 2 seconds
+ADB command timeout: 5 seconds
 ```
 
 ## 14. 错误处理
@@ -714,7 +708,7 @@ Continuous polling: false
 
 ### 14.3 提示方式
 
-不得使用频繁弹窗打断用户。优先使用 Tool Window 内状态文字、IntelliJ Notification 或状态栏提示；只有严重且需要立即处理的问题才使用 Dialog。
+不使用 Dialog。错误优先使用 Tool Window 内状态文字、IntelliJ Notification 或状态栏提示。
 
 ## 15. 状态机、并发和生命周期
 
@@ -759,9 +753,9 @@ Copy & Clear 使用触发时的 `text` 和 `version` 快照，不得使用请求
 
 插件使用 IntelliJ Logger；Android 使用标准 Android Log。
 
-允许记录：ADB executable path、设备 serial、端口、请求路径、HTTP status、文本长度、version 和错误堆栈。
+允许记录：ADB executable path、设备 serial、端口、请求路径、HTTP status、耗时、文本长度、version、操作结果和脱敏异常类型/堆栈。
 
-禁止记录：完整文本、文本前几百字符、剪贴板内容、Android 输入内容和 Authorization token。
+禁止记录：完整文本、文本片段、HTTP body、未脱敏的 ADB 输出、剪贴板内容、Android 输入内容和 Authorization token。
 
 允许示例：
 
@@ -823,9 +817,8 @@ android-studio-plugin/
 │   │   └── AndroidBridgeClient.kt
 │   ├── clipboard/
 │   │   └── ClipboardWriter.kt
-│   ├── settings/
-│   │   ├── InputBridgeSettings.kt
-│   │   └── InputBridgeConfigurable.kt
+│   ├── logging/
+│   │   └── BridgeLog.kt
 │   ├── service/
 │   │   └── InputBridgeProjectService.kt
 │   └── notifications/
@@ -906,7 +899,7 @@ POST /api/v1/text/clear/{expectedVersion}
 14. USB 重连后 Reconnect 成功。
 15. App 关闭后显示 Server Offline，重新打开后恢复。
 16. 多台设备连接时要求选择设备。
-17. Android Studio 重启后设置可恢复。
+17. Android Studio 重启后不恢复设备选择或连接设置，并继续使用固定端口和超时。
 
 ## 19. 交付标准
 
@@ -944,6 +937,21 @@ POST /api/v1/text/clear/{expectedVersion}
 ```text
 android-studio-plugin/build/distributions/
 ```
+
+### 19.4 CI 与 Tag 发布
+
+基础 CI 在 Pull Request 和推送到 `main` 时运行，必须在 `ubuntu-latest` 上通过：
+
+```bash
+./gradlew :app:lintDebug
+./gradlew :app:testDebugUnitTest
+./gradlew :protocol:test
+./gradlew :android-studio-plugin:test
+./gradlew :android-studio-plugin:buildPlugin
+./gradlew :android-studio-plugin:verifyPlugin
+```
+
+发布 Workflow 只接受 `v<major>.<minor>.<patch>` Tag；为保证 Android `versionCode` 单调且不冲突，`minor` 和 `patch` 必须在 `0..999` 范围内。发布前必须通过同一套验证矩阵，然后创建 GitHub Release 并上传 Android Debug APK 和 Plugin distribution ZIP。发布版本同时注入 Android App 和 Plugin。
 
 ## 20. MVP 验收标准
 
@@ -996,7 +1004,7 @@ android-studio-plugin/build/distributions/
 
 ### Phase 6：稳定性
 
-实现后台线程、超时、错误提示、日志内容控制、设置持久化和单元测试。
+实现后台线程、固定超时、错误提示、日志脱敏、生命周期和竞态测试、CI 以及 Tag 发布。
 
 ## 22. AI 实现约束
 

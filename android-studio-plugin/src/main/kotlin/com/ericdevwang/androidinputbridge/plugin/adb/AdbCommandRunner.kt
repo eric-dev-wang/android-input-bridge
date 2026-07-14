@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import com.ericdevwang.androidinputbridge.plugin.connection.BridgeNetworkConfig
 
 data class AdbCommandResult(
     val exitCode: Int?,
@@ -18,7 +19,7 @@ fun interface AdbCommandRunner {
 
 class ProcessAdbCommandRunner(
     private val adbPath: Path,
-    private val timeout: Duration = Duration.ofSeconds(5),
+    private val timeout: Duration = BridgeNetworkConfig.adbTimeout,
 ) : AdbCommandRunner {
     override fun run(arguments: List<String>): AdbCommandResult {
         val process = ProcessBuilder(listOf(adbPath.toString()) + arguments)
@@ -29,13 +30,18 @@ class ProcessAdbCommandRunner(
         stdout.start()
         stderr.start()
 
+        val deadlineNanos = System.nanoTime() + timeout.toNanos()
         val finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)
         if (!finished) {
             process.destroyForcibly()
-            process.waitFor(1, TimeUnit.SECONDS)
+            process.descendants().forEach(ProcessHandle::destroyForcibly)
+            val remainingNanos = deadlineNanos - System.nanoTime()
+            if (remainingNanos > 0) {
+                process.waitFor(remainingNanos, TimeUnit.NANOSECONDS)
+            }
         }
-        stdout.join()
-        stderr.join()
+        joinUntilDeadline(stdout, deadlineNanos = deadlineNanos)
+        joinUntilDeadline(stderr, deadlineNanos = deadlineNanos)
 
         return AdbCommandResult(
             exitCode = if (finished) process.exitValue() else null,
@@ -43,6 +49,14 @@ class ProcessAdbCommandRunner(
             stderr = stderr.value,
             timedOut = !finished,
         )
+    }
+
+    private fun joinUntilDeadline(thread: Thread, deadlineNanos: Long) {
+        val remainingNanos = deadlineNanos - System.nanoTime()
+        if (remainingNanos > 0) {
+            thread.join(TimeUnit.NANOSECONDS.toMillis(remainingNanos).coerceAtLeast(1))
+        }
+        if (thread.isAlive) thread.interrupt()
     }
 
     private class StreamReader(

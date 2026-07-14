@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.ericdevwang.androidinputbridge.plugin"
-version = "1.0.0"
+version = rootProject.version
 
 kotlin {
     jvmToolchain(21)

@@ -13,12 +13,12 @@ import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeClient
 import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeResult
 import com.ericdevwang.androidinputbridge.plugin.http.ProbeError
 import com.ericdevwang.androidinputbridge.plugin.http.ProbeFailureCategory
+import com.ericdevwang.androidinputbridge.plugin.logging.BridgeLog
 import com.ericdevwang.androidinputbridge.protocol.TextResponse
 import com.intellij.openapi.Disposable
 import java.nio.file.Path
 import java.time.Instant
 import java.util.concurrent.Executor
-import java.util.concurrent.RejectedExecutionException
 
 class BridgeConnectionCoordinator(
     private val adbLocator: AdbLocator,
@@ -134,9 +134,7 @@ class BridgeConnectionCoordinator(
             listeners.clear()
             probe
         }
-        runCatching {
-            probeToClose?.close()
-        }
+        probeToClose?.let(::closeProbeAsync)
     }
 
     private fun runReconnect() {
@@ -190,7 +188,7 @@ class BridgeConnectionCoordinator(
                     devices = devices,
                     selectedSerial = selected.serial,
                     adbStatus = "Available",
-                    forwardStatus = "Forwarding localhost:18080 → device:18080",
+                    forwardStatus = "Forwarding ${BridgeNetworkConfig.HOST}:${BridgeNetworkConfig.PORT} → device:${BridgeNetworkConfig.PORT}",
                     serverStatus = "Checking",
                     errorMessage = null,
                 ),
@@ -386,6 +384,7 @@ class BridgeConnectionCoordinator(
     }
 
     private fun finishConnected(probe: BridgeProbe) {
+        BridgeLog.textFetched(version = probe.text.version, length = probe.text.text.length)
         finish(
             state.copy(
                 connectionState = BridgeConnectionState.CONNECTED,
@@ -400,6 +399,7 @@ class BridgeConnectionCoordinator(
     }
 
     private fun finishText(text: TextResponse) {
+        BridgeLog.textFetched(version = text.version, length = text.text.length)
         finish(
             state.copy(
                 connectionState = BridgeConnectionState.CONNECTED,
@@ -479,8 +479,24 @@ class BridgeConnectionCoordinator(
     private fun submit(task: () -> Unit) {
         try {
             executor.execute(task)
-        } catch (exception: RejectedExecutionException) {
+        } catch (exception: RuntimeException) {
             finishError("Background task could not be scheduled.")
+        }
+    }
+
+    private fun closeProbeAsync(probe: HttpProbeClient) {
+        val closeTask = Runnable {
+            runCatching { probe.close() }
+                .onFailure { BridgeLog.failure("HTTP client close", it) }
+        }
+        try {
+            executor.execute(closeTask)
+        } catch (exception: RuntimeException) {
+            BridgeLog.failure("HTTP client close scheduling", exception)
+            Thread(closeTask, "android-input-bridge-http-close").apply {
+                isDaemon = true
+                start()
+            }
         }
     }
 

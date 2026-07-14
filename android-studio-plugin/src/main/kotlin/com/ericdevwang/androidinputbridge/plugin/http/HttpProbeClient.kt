@@ -4,6 +4,8 @@ import com.ericdevwang.androidinputbridge.protocol.HealthResponse
 import com.ericdevwang.androidinputbridge.protocol.ClearResponse
 import com.ericdevwang.androidinputbridge.protocol.ProtocolConstants
 import com.ericdevwang.androidinputbridge.protocol.TextResponse
+import com.ericdevwang.androidinputbridge.plugin.connection.BridgeNetworkConfig
+import com.ericdevwang.androidinputbridge.plugin.logging.BridgeLog
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -162,7 +164,7 @@ class JdkHttpProbeClient(
 class JdkHttpProbeTransport(
     private val httpClient: HttpClient,
     private val baseUri: URI,
-    private val requestTimeout: Duration = Duration.ofSeconds(2),
+    private val requestTimeout: Duration = BridgeNetworkConfig.httpRequestTimeout,
 ) : HttpProbeTransport {
     override fun close() {
         httpClient.close()
@@ -176,6 +178,7 @@ class JdkHttpProbeTransport(
             .build()
         return try {
             val response = httpClient.send(request, JdkHttpResponse.BodyHandlers.ofString())
+            BridgeLog.httpResponse(request.method(), path, response.statusCode())
             HttpResponse(statusCode = response.statusCode(), body = response.body())
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
@@ -200,10 +203,12 @@ class JdkHttpProbeTransport(
     }
 
     companion object {
-        fun create(baseUri: URI = URI.create("http://127.0.0.1:18080/")): JdkHttpProbeTransport =
+        fun create(
+            baseUri: URI = URI.create("http://${BridgeNetworkConfig.HOST}:${BridgeNetworkConfig.PORT}/"),
+        ): JdkHttpProbeTransport =
             JdkHttpProbeTransport(
                 httpClient = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(1))
+                    .connectTimeout(BridgeNetworkConfig.httpConnectTimeout)
                     .build(),
                 baseUri = baseUri,
             )
