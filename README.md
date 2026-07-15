@@ -126,14 +126,14 @@ CI 在 Pull Request 和推送到 `main` 时运行完整验证矩阵：
   :android-studio-plugin:verifyPlugin
 ```
 
-发布通过 `v<major>.<minor>.<patch>` Tag 触发，例如 `v1.2.3`。为保证 Android `versionCode` 单调且不冲突，`minor` 和 `patch` 必须在 `0..999` 范围内。发布 Workflow 会先运行完整验证，然后创建 GitHub Release 并上传：
+发布通过 push `v<major>.<minor>.<patch>` Tag 触发，例如 `v1.2.3`。Tag 只负责触发 Workflow 和定位 GitHub Release；Workflow 不强制比较 Tag 与 `bridgeVersion`，发布前需要由发布者自行确保二者一致。实际 Android、Plugin 和产物版本唯一来源是根目录 `gradle.properties` 中的 `bridgeVersion`。为保证 Android `versionCode` 单调且不冲突，`minor` 和 `patch` 必须在 `0..999` 范围内。Workflow 会先运行完整验证，然后使用已推送的 Tag 创建 GitHub Release 并上传：
 
 ```text
 android-input-bridge-v1.2.3-debug.apk
 android-input-bridge-plugin-v1.2.3.zip
 ```
 
-Tag 版本同时用于 Android `versionName`、Android `versionCode` 和 Plugin 版本。非 Tag 本地构建使用 `0.0.0-SNAPSHOT`，Android `versionCode` 为 `1`。
+`bridgeVersion` 同时用于 Android `versionName`、Android `versionCode`、Plugin 版本和产物文件名。当前版本为 `1.0.1`。Tag 不参与版本决定。如果移除 `bridgeVersion` 配置，构建会回退到 `0.0.0-SNAPSHOT`，Android `versionCode` 为 `1`。
 
 ## 开发顺序
 
@@ -144,7 +144,7 @@ Tag 版本同时用于 Android `versionName`、Android `versionCode` 和 Plugin 
 3. 插件 Tool Window 静态 UI。
 4. ADB 定位、设备检测、forward、HTTP 探测和重连。
 5. 剪贴板和 Copy & Clear 完整链路（已实现）。
-6. 超时、错误处理、日志脱敏、稳定性测试、CI 和 Tag 发布。
+6. 超时、错误处理、日志脱敏、稳定性测试、CI 和 Tag 发布自动化。
 
 每个阶段都必须能够独立构建和验证；实现前先输出计划，完成阶段后运行对应测试和构建检查。Phase 5 目标平台为 Android Studio 2026.1.1（IntelliJ Platform build branch 261），插件使用 Java 21。
 

@@ -82,3 +82,9 @@ tasks.register("verifyBridgeVersion") {
     check(runCatching { parseBridgeVersion("9223372036854.0.0").versionCode }.isFailure)
   }
 }
+
+tasks.register("printBridgeVersion") {
+  doLast {
+    println(bridgeVersion.displayName)
+  }
+}
