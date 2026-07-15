@@ -89,6 +89,40 @@ class InputBridgePanelTest {
     }
 
     @Test
+    fun actionButtonsWrapWhenToolWindowIsNarrow() = onEdt {
+        val panel = InputBridgePanel(FakeController())
+        val actionPanel = panel.refreshButton.parent as javax.swing.JPanel
+
+        actionPanel.setSize(200, 100)
+        actionPanel.doLayout()
+
+        val buttonRows = setOf(
+            panel.refreshButton.y,
+            panel.copyButton.y,
+            panel.copyAndClearButton.y,
+            panel.reconnectButton.y,
+        )
+        assertTrue(buttonRows.size > 1)
+    }
+
+    @Test
+    fun actionButtonsStayOnOneRowWhenToolWindowIsWide() = onEdt {
+        val panel = InputBridgePanel(FakeController())
+        val actionPanel = panel.refreshButton.parent as javax.swing.JPanel
+
+        actionPanel.setSize(800, 100)
+        actionPanel.doLayout()
+
+        val buttonRows = setOf(
+            panel.refreshButton.y,
+            panel.copyButton.y,
+            panel.copyAndClearButton.y,
+            panel.reconnectButton.y,
+        )
+        assertEquals(1, buttonRows.size)
+    }
+
+    @Test
     fun panelRoutesCopyActionsToController() = onEdt {
         val controller = FakeController()
         val panel = InputBridgePanel(controller)
