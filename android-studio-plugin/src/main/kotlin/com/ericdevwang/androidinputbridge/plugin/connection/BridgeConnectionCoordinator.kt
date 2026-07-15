@@ -26,6 +26,7 @@ class BridgeConnectionCoordinator(
     private val httpProbeClientFactory: () -> HttpProbeClient,
     private val deviceSelector: DeviceSelector,
     private val executor: Executor,
+    private val pollingScheduler: PollingScheduler,
     private val clipboardWriter: ClipboardWriter,
     private val clock: () -> Instant = { Instant.now() },
 ) : BridgeConnectionController {
@@ -46,6 +47,9 @@ class BridgeConnectionCoordinator(
 
     @Volatile
     private var busy = false
+
+    @Volatile
+    private var pollingHandle: PollingHandle? = null
 
     private data class StateNotification(
         val state: BridgeState,
@@ -124,16 +128,20 @@ class BridgeConnectionCoordinator(
     }
 
     override fun dispose() {
+        var pollingToCancel: PollingHandle? = null
         val probeToClose = synchronized(lock) {
             if (disposed) return
             disposed = true
             busy = false
+            pollingToCancel = pollingHandle
+            pollingHandle = null
             activeAdbClient = null
             val probe = activeProbeClient
             activeProbeClient = null
             listeners.clear()
             probe
         }
+        pollingToCancel?.cancel()
         probeToClose?.let(::closeProbeAsync)
     }
 
@@ -239,6 +247,47 @@ class BridgeConnectionCoordinator(
             }
         } catch (exception: Exception) {
             finishError(exception.message ?: "Unexpected refresh error.")
+        }
+    }
+
+    private fun runPollingTick() {
+        try {
+            val shouldPoll = synchronized(lock) {
+                if (
+                    disposed ||
+                    busy ||
+                    state.connectionState != BridgeConnectionState.CONNECTED ||
+                    activeProbeClient == null ||
+                    selectedSerial == null
+                ) {
+                    false
+                } else {
+                    busy = true
+                    true
+                }
+            }
+            if (!shouldPoll) return
+
+            submit { runPollingRefresh() }
+        } catch (exception: Exception) {
+            finishError(exception.message ?: "Unexpected polling scheduling error.")
+        }
+    }
+
+    private fun runPollingRefresh() {
+        try {
+            if (disposed) return
+            val probe = activeProbeClient
+            if (probe == null || selectedSerial == null) {
+                finishProbeFailureMessage("The bridge is not connected.")
+                return
+            }
+            when (val result = probe.fetchText()) {
+                is HttpProbeResult.Success -> finishPolledText(result.value)
+                is HttpProbeResult.Failure -> finishProbeFailure(result.error)
+            }
+        } catch (exception: Exception) {
+            finishError(exception.message ?: "Unexpected polling error.")
         }
     }
 
@@ -396,6 +445,7 @@ class BridgeConnectionCoordinator(
                 feedbackMessage = null,
             ),
         )
+        startPolling()
     }
 
     private fun finishText(text: TextResponse) {
@@ -411,6 +461,32 @@ class BridgeConnectionCoordinator(
                 feedbackMessage = null,
             ),
         )
+    }
+
+    private fun finishPolledText(text: TextResponse) {
+        val notification = synchronized(lock) {
+            if (disposed) return@synchronized null
+            busy = false
+            if (state.text == text.text && state.version == text.version) {
+                state = state.copy(isBusy = false)
+                return@synchronized null
+            }
+            val newState = state.copy(
+                connectionState = BridgeConnectionState.CONNECTED,
+                serverStatus = "Online",
+                text = text.text,
+                version = text.version,
+                lastRefresh = clock(),
+                errorMessage = null,
+                feedbackMessage = null,
+                isBusy = false,
+            )
+            StateNotification(newState, publishLocked(newState))
+        }
+        if (notification != null) {
+            BridgeLog.textFetched(version = text.version, length = text.text.length)
+            notifyListeners(notification)
+        }
     }
 
     private fun finishProbeFailure(error: com.ericdevwang.androidinputbridge.plugin.http.ProbeError) {
@@ -450,13 +526,48 @@ class BridgeConnectionCoordinator(
     }
 
     private fun finish(newState: BridgeState) {
+        var pollingToCancel: PollingHandle? = null
         val notification = synchronized(lock) {
             if (disposed) return
             busy = false
+            if (newState.connectionState != BridgeConnectionState.CONNECTED) {
+                pollingToCancel = pollingHandle
+                pollingHandle = null
+            }
             val finishedState = newState.copy(isBusy = false)
             StateNotification(finishedState, publishLocked(finishedState))
         }
+        pollingToCancel?.cancel()
         notifyListeners(notification)
+    }
+
+    private fun startPolling() {
+        val newPollingHandle = runCatching {
+            pollingScheduler.scheduleWithFixedDelay(
+                initialDelayMillis = BridgeNetworkConfig.HTTP_POLL_INTERVAL_MILLIS,
+                delayMillis = BridgeNetworkConfig.HTTP_POLL_INTERVAL_MILLIS,
+                task = ::runPollingTick,
+            )
+        }.getOrElse {
+            finishError("HTTP polling could not be scheduled.")
+            return
+        }
+
+        var handleToCancel: PollingHandle? = null
+        val keepNewHandle = synchronized(lock) {
+            if (disposed || state.connectionState != BridgeConnectionState.CONNECTED) {
+                false
+            } else {
+                handleToCancel = pollingHandle
+                pollingHandle = newPollingHandle
+                true
+            }
+        }
+        if (keepNewHandle) {
+            handleToCancel?.cancel()
+        } else {
+            newPollingHandle.cancel()
+        }
     }
 
     private fun publish(newState: BridgeState) {

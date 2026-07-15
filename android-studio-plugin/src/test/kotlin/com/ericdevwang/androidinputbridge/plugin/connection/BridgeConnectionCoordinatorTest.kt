@@ -28,6 +28,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@Suppress("UNCHECKED_CAST")
+private fun <T : Throwable> throwUnchecked(exception: Throwable): Nothing = throw exception as T
+
 class BridgeConnectionCoordinatorTest {
     @Test
     fun reconnectDiscoversDeviceForwardsAndPublishesConnectedState() {
@@ -379,6 +382,120 @@ class BridgeConnectionCoordinatorTest {
     }
 
     @Test
+    fun connectedCoordinatorPollsTextWithoutRunningAdbAgain() {
+        val probe = RecordingProbe(refreshedText = TextResponse("updated", 18, 1783780001000))
+        val adb = FakeAdbClient(
+            deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8")))),
+        )
+        val scheduler = ManualPollingScheduler()
+        val coordinator = newCoordinator(adb = adb, probe = probe, pollingScheduler = scheduler)
+
+        try {
+            coordinator.reconnect()
+
+            assertEquals(BridgeNetworkConfig.HTTP_POLL_INTERVAL_MILLIS, scheduler.initialDelayMillis)
+            assertEquals(BridgeNetworkConfig.HTTP_POLL_INTERVAL_MILLIS, scheduler.delayMillis)
+            scheduler.runNext()
+            assertEquals(1, probe.fetchCalls)
+            assertEquals("updated", coordinator.state.text)
+            assertEquals(18L, coordinator.state.version)
+            assertEquals(listOf("create:serial"), adb.actions)
+        } finally {
+            coordinator.dispose()
+        }
+    }
+
+    @Test
+    fun pollingDoesNotOverlapRefreshAndIsCancelledWhenDisposed() {
+        val executor = FirstTaskImmediateExecutor()
+        val probe = RecordingProbe()
+        val scheduler = ManualPollingScheduler()
+        val coordinator = newCoordinator(
+            probe = probe,
+            executor = executor,
+            pollingScheduler = scheduler,
+        )
+
+        coordinator.reconnect()
+        scheduler.runNext()
+        scheduler.runNext()
+
+        assertEquals(1, executor.queuedTasks.size)
+        assertEquals(0, probe.fetchCalls)
+
+        executor.queuedTasks.removeFirst().invoke()
+        assertEquals(1, probe.fetchCalls)
+
+        coordinator.dispose()
+        assertTrue(scheduler.isCancelled)
+        scheduler.runNext()
+        assertEquals(1, probe.fetchCalls)
+    }
+
+    @Test
+    fun pollingStopsAfterHttpFailure() {
+        val scheduler = ManualPollingScheduler()
+        val probe = RecordingProbe(
+            fetchResult = HttpProbeResult.Failure(
+                ProbeError(ProbeFailureCategory.CONNECTION, "offline", retryable = true),
+            ),
+        )
+        val coordinator = newCoordinator(probe = probe, pollingScheduler = scheduler)
+
+        try {
+            coordinator.reconnect()
+            scheduler.runNext()
+            scheduler.runNext()
+
+            assertEquals(1, probe.fetchCalls)
+            assertEquals(BridgeConnectionState.SERVER_OFFLINE, coordinator.state.connectionState)
+            assertTrue(scheduler.isCancelled)
+        } finally {
+            coordinator.dispose()
+        }
+    }
+
+    @Test
+    fun pollingDoesNotNotifyWhenTextVersionIsUnchanged() {
+        val scheduler = ManualPollingScheduler()
+        val coordinator = newCoordinator(probe = RecordingProbe(), pollingScheduler = scheduler)
+        val notifications = mutableListOf<BridgeState>()
+        coordinator.addListener { notifications += it }
+
+        try {
+            coordinator.reconnect()
+            val notificationsAfterConnection = notifications.size
+
+            scheduler.runNext()
+
+            assertEquals(notificationsAfterConnection, notifications.size)
+            assertFalse(coordinator.state.isBusy)
+        } finally {
+            coordinator.dispose()
+        }
+    }
+
+    @Test
+    fun pollingTickFailureTransitionsToErrorInsteadOfEscapingScheduler() {
+        val scheduler = ManualPollingScheduler()
+        val coordinator = newCoordinator(
+            probe = RecordingProbe(),
+            executor = CheckedFailureAfterFirstExecutor(),
+            pollingScheduler = scheduler,
+        )
+
+        try {
+            coordinator.reconnect()
+            scheduler.runNext()
+
+            assertEquals(BridgeConnectionState.ERROR, coordinator.state.connectionState)
+            assertTrue(scheduler.isCancelled)
+        } finally {
+            coordinator.dispose()
+        }
+    }
+
+    @Test
     fun disposedCoordinatorIgnoresLateRefreshResult() {
         val executor = FirstTaskImmediateExecutor()
         val probe = RecordingProbe()
@@ -403,6 +520,7 @@ class BridgeConnectionCoordinatorTest {
         selector: DeviceSelector = DeviceSelector { it.first() },
         probeFactory: () -> HttpProbeClient = { probe },
         executor: Executor = Executor { it.run() },
+        pollingScheduler: PollingScheduler = ManualPollingScheduler(),
         clipboardWriter: ClipboardWriter = RecordingClipboardWriter(),
     ): BridgeConnectionCoordinator = BridgeConnectionCoordinator(
         adbLocator = AdbLocator(
@@ -413,6 +531,7 @@ class BridgeConnectionCoordinatorTest {
         httpProbeClientFactory = probeFactory,
         deviceSelector = selector,
         executor = executor,
+        pollingScheduler = pollingScheduler,
         clipboardWriter = clipboardWriter,
         clock = { Instant.parse("2026-07-13T12:00:00Z") },
     )
@@ -517,11 +636,13 @@ class BridgeConnectionCoordinatorTest {
         }
     }
 
-    private class RecordingProbe(
+    private open class RecordingProbe(
         private val initialText: TextResponse = textResponse(),
         private val clearResult: HttpProbeResult<ClearResponse> =
             HttpProbeResult.Success(ClearResponse(17, 18)),
         private val refreshedText: TextResponse = textResponse(),
+        private val fetchResult: HttpProbeResult<TextResponse> =
+            HttpProbeResult.Success(refreshedText),
         private val events: MutableList<String>? = null,
     ) : HttpProbeClient {
         var clearCalls = 0
@@ -532,13 +653,47 @@ class BridgeConnectionCoordinatorTest {
 
         override fun fetchText(): HttpProbeResult<TextResponse> {
             fetchCalls++
-            return HttpProbeResult.Success(refreshedText)
+            return fetchResult
         }
 
         override fun clearText(expectedVersion: Long): HttpProbeResult<ClearResponse> {
             clearCalls++
             events?.add("clear:$expectedVersion")
             return clearResult
+        }
+    }
+
+    private class ManualPollingScheduler : PollingScheduler {
+        var initialDelayMillis: Long? = null
+        var delayMillis: Long? = null
+        var isCancelled = false
+        private var task: (() -> Unit)? = null
+
+        override fun scheduleWithFixedDelay(
+            initialDelayMillis: Long,
+            delayMillis: Long,
+            task: () -> Unit,
+        ): PollingHandle {
+            this.initialDelayMillis = initialDelayMillis
+            this.delayMillis = delayMillis
+            this.task = task
+            return PollingHandle { isCancelled = true }
+        }
+
+        fun runNext() {
+            if (!isCancelled) task?.invoke()
+        }
+    }
+
+    private class CheckedFailureAfterFirstExecutor : Executor {
+        private var executions = 0
+
+        override fun execute(command: Runnable) {
+            if (executions++ == 1) {
+                throwUnchecked<Exception>(Exception("polling task could not be scheduled"))
+            } else {
+                command.run()
+            }
         }
     }
 

@@ -9,6 +9,7 @@ object BridgeNetworkConfig {
     const val ADB_TIMEOUT_SECONDS = 5L
     const val HTTP_CONNECT_TIMEOUT_SECONDS = 1L
     const val HTTP_REQUEST_TIMEOUT_SECONDS = 2L
+    const val HTTP_POLL_INTERVAL_MILLIS = 300L
 
     val adbTimeout: Duration = Duration.ofSeconds(ADB_TIMEOUT_SECONDS)
     val httpConnectTimeout: Duration = Duration.ofSeconds(HTTP_CONNECT_TIMEOUT_SECONDS)
