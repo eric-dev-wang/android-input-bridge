@@ -7,6 +7,7 @@ import com.ericdevwang.androidinputbridge.plugin.connection.BridgeState
 import com.ericdevwang.androidinputbridge.plugin.notifications.InputBridgeNotifier
 import com.intellij.openapi.Disposable
 import java.awt.BorderLayout
+import java.awt.FlowLayout
 import java.awt.Font
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
@@ -134,13 +135,10 @@ class InputBridgePanel(
         }, BorderLayout.NORTH)
         add(feedbackLabel, BorderLayout.CENTER)
         add(JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            layout = WrapLayout(FlowLayout.LEFT, 8, 8)
             add(refreshButton)
-            add(Box.createHorizontalStrut(8))
             add(copyButton)
-            add(Box.createHorizontalStrut(8))
             add(copyAndClearButton)
-            add(Box.createHorizontalStrut(8))
             add(reconnectButton)
         }, BorderLayout.SOUTH)
     }
