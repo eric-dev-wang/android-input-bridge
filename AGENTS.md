@@ -8,7 +8,7 @@ This repository uses one root Gradle project with two product modules and one sh
 - `protocol/`: plain Kotlin/JVM HTTP protocol module, with shared DTOs under `protocol/src/main/kotlin` and serialization tests under `protocol/src/test/kotlin`.
 - `android-studio-plugin/`: Kotlin IntelliJ Platform plugin module, with code under `src/main/kotlin`, tests under `src/test/kotlin`, and plugin metadata under `src/main/resources/META-INF`.
 - `docs/`: requirements, commit conventions, and implementation notes.
-- `.github/workflows/`: pull request/main CI and SemVer Tag release workflows.
+- `.github/workflows/`: pull request/main CI and push-tag release workflow using `bridgeVersion` for artifacts.
 - `.worktrees/`: local isolated Git worktrees used for feature implementation; its contents are not committed.
 
 Keep the Android App and plugin independently buildable within the same root Gradle project. Keep `protocol/` limited to versioned wire models and serialization contracts. Use `docs/requirements.md` as the functional source of truth.
