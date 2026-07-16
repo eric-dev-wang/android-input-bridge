@@ -7,6 +7,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -31,19 +36,40 @@ class DefaultTextRepository(
         override val result: CompletableDeferred<ClearResult>,
     ) : WriteRequest
 
+    private sealed interface ClearDecision {
+        data class Persist(
+            val state: TextState,
+            val clearedVersion: Long,
+        ) : ClearDecision
+
+        data class Conflict(val currentVersion: Long) : ClearDecision
+    }
+
     private val requests = ArrayDeque<WriteRequest>()
     private val requestsMutex = Mutex()
     private val requestSignal = Channel<Unit>(capacity = Channel.CONFLATED)
+    private val liveState = MutableStateFlow<TextState?>(null)
 
-    override val state: Flow<TextState> = dataSource.state
+    override val state: Flow<TextState> = liveState
+        .filterNotNull()
+        .distinctUntilChanged()
 
     init {
+        scope.launch { observePersistedState() }
         scope.launch { processRequests() }
     }
 
     override suspend fun save(state: TextState): PersistenceResult {
         val request = SaveRequest(state, CompletableDeferred())
-        enqueueSave(request)
+        requestsMutex.withLock {
+            val current = liveState.value
+            if (current != null && state.version <= current.version) {
+                request.result.complete(PersistenceResult.Superseded(state.version))
+            } else {
+                liveState.value = state
+                enqueueSaveLocked(request)
+            }
+        }
         return request.result.await()
     }
 
@@ -53,16 +79,14 @@ class DefaultTextRepository(
         return request.result.await()
     }
 
-    private suspend fun enqueueSave(request: SaveRequest) {
-        requestsMutex.withLock {
-            val last = if (requests.isEmpty()) null else requests.last()
-            if (last is SaveRequest) {
-                requests.removeLast()
-                last.result.complete(PersistenceResult.Superseded(last.state.version))
-            }
-            requests.addLast(request)
-            requestSignal.trySend(Unit)
+    private fun enqueueSaveLocked(request: SaveRequest) {
+        val last = if (requests.isEmpty()) null else requests.last()
+        if (last is SaveRequest) {
+            requests.removeLast()
+            last.result.complete(PersistenceResult.Superseded(last.state.version))
         }
+        requests.addLast(request)
+        requestSignal.trySend(Unit)
     }
 
     private suspend fun enqueue(request: WriteRequest) {
@@ -116,20 +140,56 @@ class DefaultTextRepository(
         request.result.complete(result)
     }
 
+    private suspend fun observePersistedState() {
+        dataSource.state.collect { persistedState ->
+            requestsMutex.withLock {
+                val current = liveState.value
+                if (current == null || persistedState.version > current.version) {
+                    liveState.value = persistedState
+                }
+            }
+        }
+    }
+
     private suspend fun processClear(request: ClearRequest) {
         try {
-            request.result.complete(
-                dataSource.clearIfVersion(
-                    expectedVersion = request.expectedVersion,
-                    nowMillis = clock(),
-                ),
-            )
+            currentLiveState()
+            when (val decision = requestsMutex.withLock {
+                val latest = checkNotNull(liveState.value)
+                if (latest.version != request.expectedVersion) {
+                    ClearDecision.Conflict(latest.version)
+                } else {
+                    val cleared = latest.clear(clock())
+                    liveState.value = cleared
+                    ClearDecision.Persist(cleared, latest.version)
+                }
+            }) {
+                is ClearDecision.Conflict ->
+                    request.result.complete(ClearResult.VersionConflict(decision.currentVersion))
+                is ClearDecision.Persist -> {
+                    dataSource.saveIfNewer(decision.state)
+                    request.result.complete(
+                        ClearResult.Cleared(
+                            clearedVersion = decision.clearedVersion,
+                            newVersion = decision.state.version,
+                        ),
+                    )
+                }
+            }
         } catch (error: Exception) {
             if (error is CancellationException) {
                 request.result.cancel(error)
                 throw error
             }
             request.result.completeExceptionally(error)
+        }
+    }
+
+    private suspend fun currentLiveState(): TextState {
+        liveState.value?.let { return it }
+        val persistedState = dataSource.state.first()
+        return requestsMutex.withLock {
+            liveState.value ?: persistedState.also { liveState.value = it }
         }
     }
 }

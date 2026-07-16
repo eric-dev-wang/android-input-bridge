@@ -52,7 +52,7 @@ class InputHttpServerTest {
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals(
-            "{\"status\":\"ok\",\"appVersion\":\"1.0.0\",\"protocolVersion\":1,\"serverTime\":123}",
+            "{\"status\":\"ok\",\"appVersion\":\"1.0.0\",\"protocolVersion\":2,\"serverTime\":123}",
             response.bodyAsText(),
         )
     }

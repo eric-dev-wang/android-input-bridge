@@ -38,7 +38,7 @@ class HttpTextRepositoryTest {
             HealthResponse(
                 status = "ok",
                 appVersion = "2.3.4",
-                protocolVersion = 1,
+                protocolVersion = 2,
                 serverTime = 456L,
             ),
             result,
