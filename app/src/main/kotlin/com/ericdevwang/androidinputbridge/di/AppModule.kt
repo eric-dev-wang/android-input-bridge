@@ -3,12 +3,11 @@ package com.ericdevwang.androidinputbridge.di
 import android.app.Application
 import android.content.pm.PackageManager
 import android.os.Build
-import com.ericdevwang.androidinputbridge.http.HttpTextRepository
 import com.ericdevwang.androidinputbridge.repository.DataStoreTextDataSource
 import com.ericdevwang.androidinputbridge.repository.DefaultTextRepository
 import com.ericdevwang.androidinputbridge.repository.TextDataSource
 import com.ericdevwang.androidinputbridge.repository.TextRepository
-import com.ericdevwang.androidinputbridge.server.InputHttpServer
+import com.ericdevwang.androidinputbridge.server.InputWebSocketServer
 import com.ericdevwang.androidinputbridge.ui.main.MainScreenViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,12 +27,11 @@ val appModule = module {
         (androidContext() as Application).readVersionName()
     }
     single {
-        HttpTextRepository(
+        InputWebSocketServer(
             repository = get(),
             appVersion = get(named(APP_VERSION_QUALIFIER)),
         )
     }
-    single { InputHttpServer(repository = get()) }
     viewModel { MainScreenViewModel(repository = get()) }
 }
 

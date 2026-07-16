@@ -102,6 +102,6 @@ class ProtocolModelSerializationTest {
     fun protocolVersionIsSharedByClientsAndServer() {
         assertEquals(2, ProtocolConstants.CURRENT_VERSION)
         assertEquals("127.0.0.1", ProtocolConstants.LOCALHOST)
-        assertEquals(18080, ProtocolConstants.HTTP_PORT)
+        assertEquals(18080, ProtocolConstants.SERVER_PORT)
     }
 }
