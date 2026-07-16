@@ -7,6 +7,9 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.test.core.app.ApplicationProvider
 import com.ericdevwang.androidinputbridge.model.TextState
+import com.ericdevwang.androidinputbridge.storage.TEXT_KEY
+import com.ericdevwang.androidinputbridge.storage.UPDATED_AT_KEY
+import com.ericdevwang.androidinputbridge.storage.VERSION_KEY
 import java.io.File
 import java.io.IOException
 import java.util.UUID
@@ -91,7 +94,10 @@ class DefaultTextRepositoryTest {
             PersistenceResult.Failed(1L),
             repository.save(TextState("keep", 1L, 100L)),
         )
-        assertEquals(TextState("", 0L, 0L), repository.state.first())
+        val persistedState = store.data.first()
+        assertEquals(null, persistedState[TEXT_KEY])
+        assertEquals(null, persistedState[VERSION_KEY])
+        assertEquals(null, persistedState[UPDATED_AT_KEY])
         repositoryScope.cancel()
     }
 
