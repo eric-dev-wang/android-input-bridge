@@ -31,7 +31,7 @@ class DataStoreTextDataSourceTest {
     }
 
     @Test
-    fun clearIfVersionClearsMatchingVersionAndIncrementsVersion() = runTest {
+    fun saveIfNewerPersistsClearedState() = runTest {
         val dataSource = DataStoreTextDataSource(
             PreferenceDataStoreFactory.create(
                 scope = backgroundScope,
@@ -40,44 +40,8 @@ class DataStoreTextDataSourceTest {
         )
         dataSource.saveIfNewer(TextState("keep", 3L, 30L))
 
-        assertEquals(
-            ClearResult.Cleared(clearedVersion = 3L, newVersion = 4L),
-            dataSource.clearIfVersion(expectedVersion = 3L, nowMillis = 40L),
-        )
+        assertTrue(dataSource.saveIfNewer(TextState("", 4L, 40L)))
         assertEquals(TextState("", 4L, 40L), dataSource.state.first())
-    }
-
-    @Test
-    fun clearIfVersionReturnsConflictAndPreservesStateForStaleVersion() = runTest {
-        val dataSource = DataStoreTextDataSource(
-            PreferenceDataStoreFactory.create(
-                scope = backgroundScope,
-                produceFile = ::testFile,
-            ),
-        )
-        dataSource.saveIfNewer(TextState("current", 3L, 30L))
-
-        assertEquals(
-            ClearResult.VersionConflict(currentVersion = 3L),
-            dataSource.clearIfVersion(expectedVersion = 2L, nowMillis = 40L),
-        )
-        assertEquals(TextState("current", 3L, 30L), dataSource.state.first())
-    }
-
-    @Test
-    fun clearIfVersionIsNoOpForEmptyState() = runTest {
-        val dataSource = DataStoreTextDataSource(
-            PreferenceDataStoreFactory.create(
-                scope = backgroundScope,
-                produceFile = ::testFile,
-            ),
-        )
-
-        assertEquals(
-            ClearResult.Cleared(clearedVersion = 0L, newVersion = 0L),
-            dataSource.clearIfVersion(expectedVersion = 0L, nowMillis = 40L),
-        )
-        assertEquals(TextState("", 0L, 0L), dataSource.state.first())
     }
 
     private fun testFile(): File =

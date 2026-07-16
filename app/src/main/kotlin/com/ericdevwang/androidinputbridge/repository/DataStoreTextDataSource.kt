@@ -34,25 +34,6 @@ class DataStoreTextDataSource(
         }
         return saved
     }
-
-    override suspend fun clearIfVersion(expectedVersion: Long, nowMillis: Long): ClearResult {
-        var result: ClearResult? = null
-        dataStore.edit { preferences ->
-            val current = preferences.toTextState()
-            if (current.version != expectedVersion) {
-                result = ClearResult.VersionConflict(current.version)
-                return@edit
-            }
-
-            val cleared = current.clear(nowMillis)
-            if (cleared != current) cleared.writeTo(preferences)
-            result = ClearResult.Cleared(
-                clearedVersion = current.version,
-                newVersion = cleared.version,
-            )
-        }
-        return checkNotNull(result)
-    }
 }
 
 private fun Preferences.toTextState(): TextState =
