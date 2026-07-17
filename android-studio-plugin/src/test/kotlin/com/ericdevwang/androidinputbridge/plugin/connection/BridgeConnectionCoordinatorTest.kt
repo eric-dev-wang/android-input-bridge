@@ -75,6 +75,37 @@ class BridgeConnectionCoordinatorTest {
     }
 
     @Test
+    fun websocketErrorTransitionsToErrorState() {
+        val client = RecordingWebSocketClient()
+        val coordinator = newCoordinator(client = client)
+        coordinator.reconnect()
+
+        client.emitError(IllegalStateException("socket failed"))
+
+        assertEquals(BridgeConnectionState.ERROR, coordinator.state.connectionState)
+        assertEquals("Offline", coordinator.state.serverStatus)
+        assertEquals("WebSocket connection failed.", coordinator.state.errorMessage)
+    }
+
+    @Test
+    fun lateTextChangedFromPreviousWebSocketIsIgnoredAfterReconnect() {
+        val firstClient = RecordingWebSocketClient()
+        val secondClient = RecordingWebSocketClient()
+        val clients = ArrayDeque(listOf(firstClient, secondClient))
+        val coordinator = newCoordinator(clientFactory = { clients.removeFirst() })
+
+        coordinator.reconnect()
+        coordinator.reconnect()
+
+        firstClient.emit(TextChanged("stale", 99L, 999L))
+        assertEquals("你好", coordinator.state.text)
+
+        secondClient.emit(TextChanged("current", 18L, 101L))
+        assertEquals("current", coordinator.state.text)
+        assertEquals(18L, coordinator.state.version)
+    }
+
+    @Test
     fun repeatedTextChangedDoesNotClearCopyAndClearFeedback() {
         val client = RecordingWebSocketClient()
         val coordinator = newCoordinator(client = client)
@@ -165,6 +196,21 @@ class BridgeConnectionCoordinatorTest {
         assertEquals(0, client.clearCalls)
         assertEquals("你好", coordinator.state.text)
         assertEquals("Clipboard write failed.", coordinator.state.feedbackMessage)
+    }
+
+    @Test
+    fun clearFailurePreservesCopiedText() {
+        val client = RecordingWebSocketClient(
+            clearResult = BridgeWebSocketResult.Failure("clear failed", "TEXT_CLEAR_FAILED"),
+        )
+        val coordinator = newCoordinator(client = client, clipboardWriter = RecordingClipboardWriter())
+
+        coordinator.reconnect()
+        coordinator.copyAndClear()
+
+        assertEquals(1, client.clearCalls)
+        assertEquals("你好", coordinator.state.text)
+        assertEquals("Text was copied, but the phone content could not be cleared.", coordinator.state.feedbackMessage)
     }
 
     @Test
@@ -338,6 +384,10 @@ class BridgeConnectionCoordinatorTest {
 
         fun emitClosed() {
             listener?.onClosed(null)
+        }
+
+        fun emitError(cause: Throwable) {
+            listener?.onError(cause)
         }
 
         override fun close() {

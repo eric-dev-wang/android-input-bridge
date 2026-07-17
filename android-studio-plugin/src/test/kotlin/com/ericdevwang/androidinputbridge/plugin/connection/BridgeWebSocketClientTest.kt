@@ -60,6 +60,62 @@ class BridgeWebSocketClientTest {
     }
 
     @Test
+    fun snapshotResponseMustMatchItsRequestId() {
+        val transport = RecordingWebSocketTransport()
+        val client = connectedClient(transport, RecordingWebSocketEventListener())
+        transport.onSend = { message, session ->
+            if (message is com.ericdevwang.androidinputbridge.protocol.GetSnapshotCommand) {
+                session.emit(TextSnapshot("updated", 8L, 101L, requestId = message.requestId))
+            }
+        }
+
+        assertEquals(
+            BridgeWebSocketResult.Success(TextSnapshot("updated", 8L, 101L, requestId = "request-1")),
+            client.getSnapshot(),
+        )
+    }
+
+    @Test
+    fun mismatchedSnapshotResponseFailsWithInvalidResponse() {
+        val transport = RecordingWebSocketTransport()
+        val client = connectedClient(transport, RecordingWebSocketEventListener())
+        transport.onSend = { message, session ->
+            if (message is com.ericdevwang.androidinputbridge.protocol.GetSnapshotCommand) {
+                session.emit(TextSnapshot("updated", 8L, 101L, requestId = "wrong-request"))
+            }
+        }
+
+        assertEquals("INVALID_RESPONSE", (client.getSnapshot() as BridgeWebSocketResult.Failure).code)
+    }
+
+    @Test
+    fun transportLifecycleEventsAreForwardedToListener() {
+        val transport = RecordingWebSocketTransport()
+        val listener = RecordingWebSocketEventListener()
+        val client = connectedClient(transport, listener)
+        val closeCause = IllegalStateException("closed")
+        val errorCause = IllegalStateException("failed")
+
+        transport.session.emitClosed(closeCause)
+        transport.session.emitError(errorCause)
+
+        assertEquals(listOf(closeCause), listener.closedCauses)
+        assertEquals(listOf(errorCause), listener.errors)
+        client.close()
+    }
+
+    @Test
+    fun closeClosesSessionAndTransport() {
+        val transport = RecordingWebSocketTransport()
+        val client = connectedClient(transport, RecordingWebSocketEventListener())
+
+        client.close()
+
+        assertEquals(1, transport.session.closeCalls)
+        assertEquals(1, transport.closeCalls)
+    }
+
+    @Test
     fun clearReturnsVersionConflictWithoutTreatingItAsTransportFailure() {
         val transport = RecordingWebSocketTransport()
         transport.onSend = { message, session ->
@@ -191,15 +247,26 @@ private class RequestIds : () -> String {
 
 private class RecordingWebSocketEventListener : BridgeWebSocketEventListener {
     val textChanges = mutableListOf<TextChanged>()
+    val closedCauses = mutableListOf<Throwable?>()
+    val errors = mutableListOf<Throwable>()
 
     override fun onTextChanged(message: TextChanged) {
         textChanges += message
+    }
+
+    override fun onClosed(cause: Throwable?) {
+        closedCauses += cause
+    }
+
+    override fun onError(cause: Throwable) {
+        errors += cause
     }
 }
 
 private class RecordingWebSocketTransport : BridgeWebSocketTransport {
     val session = RecordingWebSocketSession()
     var onSend: ((BridgeMessage, RecordingWebSocketSession) -> Unit)? = null
+    var closeCalls = 0
 
     val sentMessages: List<BridgeMessage>
         get() = session.sentMessages
@@ -210,11 +277,15 @@ private class RecordingWebSocketTransport : BridgeWebSocketTransport {
         return BridgeWebSocketTransportResult.Connected(session)
     }
 
+    override fun close() {
+        closeCalls++
+    }
 }
 
 private class RecordingWebSocketSession : BridgeWebSocketSession {
     var listener: BridgeWebSocketTransportListener? = null
     val sentMessages = mutableListOf<BridgeMessage>()
+    var closeCalls = 0
     var onSend: ((BridgeMessage, RecordingWebSocketSession) -> Unit)? = null
 
     override fun send(message: BridgeMessage): Boolean {
@@ -227,5 +298,15 @@ private class RecordingWebSocketSession : BridgeWebSocketSession {
         listener?.onMessage(message)
     }
 
-    override fun close() = Unit
+    fun emitClosed(cause: Throwable?) {
+        listener?.onClosed(cause)
+    }
+
+    fun emitError(cause: Throwable) {
+        listener?.onError(cause)
+    }
+
+    override fun close() {
+        closeCalls++
+    }
 }

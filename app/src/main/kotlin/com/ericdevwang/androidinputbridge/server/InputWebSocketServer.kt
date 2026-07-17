@@ -152,6 +152,7 @@ private suspend fun DefaultWebSocketServerSession.handleBridgeSession(
         reject(
             code = "INVALID_HANDSHAKE",
             message = "The first WebSocket message must be hello.",
+            requestId = hello.requestIdOrNull(),
         )
         return
     }
