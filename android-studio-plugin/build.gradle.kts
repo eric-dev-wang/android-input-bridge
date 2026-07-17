@@ -11,6 +11,8 @@ kotlin {
 }
 
 val localAndroidStudioPath = providers.gradleProperty("androidStudioPath")
+val intellijIdeaVersion = "2026.1.1"
+val androidPluginVersion = "261.23567.138"
 
 dependencies {
     implementation(project(":protocol"))
@@ -20,8 +22,8 @@ dependencies {
             local(localAndroidStudioPath.get())
             bundledPlugin("org.jetbrains.android")
         } else {
-            androidStudio("2026.1.1.10")
-            plugin("org.jetbrains.android:261.23567.138")
+            intellijIdea(intellijIdeaVersion)
+            plugin("org.jetbrains.android:$androidPluginVersion")
         }
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }

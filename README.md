@@ -1,8 +1,8 @@
 # Android Input Bridge
 
-Android Input Bridge 是一个通过 USB ADB 将 Android 手机上的临时文本推送到 Android Studio 插件的本地文本桥接工具。
+Android Input Bridge 是一个通过 USB ADB 将 Android 手机上的临时文本推送到 Android Studio / IntelliJ IDEA 插件的本地文本桥接工具。
 
-Android App 负责输入和保存当前文本；Android Studio Plugin 负责接收实时更新、展示文本并写入系统剪贴板。用户最后在目标程序中手动粘贴。
+Android App 负责输入和保存当前文本；IntelliJ Platform Plugin 负责接收实时更新、展示文本并写入系统剪贴板。用户最后在目标程序中手动粘贴。
 
 ## 当前架构
 
@@ -35,7 +35,7 @@ ws://127.0.0.1:18080/api/v1/ws
 .
 ├── app/                    # Android App、Repository、Service、WebSocket Server
 ├── protocol/               # 纯 Kotlin/JVM 共享协议模型
-├── android-studio-plugin/  # Android Studio Plugin 和 Tool Window
+├── android-studio-plugin/  # Android Studio / IntelliJ IDEA Plugin 和 Tool Window
 ├── docs/                   # 需求、协议和开发规范
 └── .github/workflows/      # CI 与发布工作流
 ```
@@ -53,7 +53,15 @@ ws://127.0.0.1:18080/api/v1/ws
 ./gradlew :protocol:test
 ```
 
-Plugin 使用本机 Android Studio 2026.1.3 验证时：
+Plugin 默认使用 IntelliJ IDEA 2026.1.1 和 Android plugin 261.23567.138 构建及测试：
+
+```bash
+./gradlew :android-studio-plugin:test
+./gradlew :android-studio-plugin:buildPlugin
+./gradlew :android-studio-plugin:verifyPlugin
+```
+
+需要使用本机 Android Studio 2026.1.3 做额外兼容性验证时：
 
 ```bash
 ./gradlew :android-studio-plugin:test \
