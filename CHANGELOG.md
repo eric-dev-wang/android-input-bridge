@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-07-17
+
+### Changed
+
+- Refreshed the Android App main screen layout.
+- Limited Android text input to 8,000 code points.
+
+### Fixed
+
+- Registered the plugin notification group safely to prevent notification failures.
+
 ## [1.1.0] - 2026-07-17
 
 ### Added
@@ -57,6 +68,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Consolidated the Android App, protocol module, and Android Studio plugin into one Gradle project.
 - Restricted the Android HTTP server to `127.0.0.1:18080` and communication to the ADB-forwarded local channel.
 
+[1.1.1]: https://github.com/eric-dev-wang/android-input-bridge/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/eric-dev-wang/android-input-bridge/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/eric-dev-wang/android-input-bridge/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/eric-dev-wang/android-input-bridge/releases/tag/v1.0.0
