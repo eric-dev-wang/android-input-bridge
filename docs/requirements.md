@@ -1,5 +1,7 @@
 # Android Input Bridge 需求说明
 
+> 文档状态：当前实现基线为 `1.1.1`，WebSocket 协议迁移已经完成。本文件描述产品约束、边界和验收范围；具体运行行为以源码和测试为准，线协议以 [`docs/websocket-protocol.md`](websocket-protocol.md) 为准。文末 Phase 列表是历史范围上下文，不是自动待办队列。
+
 ## 1. 产品定义
 
 Android Input Bridge 是一个通过 USB ADB 将 Android 手机上的临时文本推送到 Android Studio 插件，并在 Tool Window 中展示和复制的本地文本桥接工具。

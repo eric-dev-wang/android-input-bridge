@@ -1,5 +1,12 @@
 # Repository Guidelines
 
+## Current Repository Snapshot
+
+- Release baseline: `1.1.1` from `gradle.properties`; wire protocol version: `2`.
+- Runtime flow: `app` owns `MainActivity`/`MainScreen`, `TextRepository`, and the foreground `InputBridgeService`/`InputWebSocketServer`; `android-studio-plugin` owns `InputBridgeToolWindowFactory`, `InputBridgePanel`, `BridgeConnectionCoordinator`, ADB, and the WebSocket client.
+- `protocol` owns `ProtocolModels.kt`, `ProtocolConstants.kt`, and serialization configuration shared by both products.
+- The default plugin target is IntelliJ IDEA `2026.1.1` with Android plugin `261.23567.138`; use Java 21 and the checked-in Gradle wrapper.
+
 ## Project Structure & Module Organization
 
 This repository uses one root Gradle project with two product modules and one shared module:
@@ -12,6 +19,18 @@ This repository uses one root Gradle project with two product modules and one sh
 - `.worktrees/`: local isolated Git worktrees used for feature implementation; its contents are not committed.
 
 Keep the Android App and plugin independently buildable within the same root Gradle project. Keep `protocol/` limited to versioned wire models and serialization contracts. Use `docs/requirements.md` as the functional source of truth.
+
+## Documentation Authority
+
+Use the documents in this order when information differs:
+
+1. Source code and tests: actual implementation behavior.
+2. `docs/websocket-protocol.md`: cross-module wire compatibility.
+3. `docs/requirements.md`: product constraints and acceptance scope.
+4. `README.md`: onboarding and user-facing overview.
+5. `AGENTS.md`: contribution workflow and AI-specific guardrails.
+
+The phase list in `docs/requirements.md` is historical scope context, not an automatic task queue.
 
 ## Worktree Workflow
 
