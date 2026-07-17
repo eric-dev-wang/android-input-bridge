@@ -84,17 +84,6 @@ class BridgeConnectionCoordinator(
         submit { runReconnect() }
     }
 
-    override fun refresh() {
-        val notification = synchronized(lock) {
-            if (disposed || busy) return
-            busy = true
-            val newState = state.copy(isBusy = true, errorMessage = null)
-            StateNotification(newState, publishLocked(newState))
-        }
-        notifyListeners(notification)
-        submit { runRefresh() }
-    }
-
     override fun selectDevice(serial: String) {
         val notification = synchronized(lock) {
             if (disposed || busy || state.devices.none { it.serial == serial }) return
@@ -215,25 +204,6 @@ class BridgeConnectionCoordinator(
             }
         } catch (exception: Exception) {
             finishError(exception.message ?: "Unexpected connection error.")
-        }
-    }
-
-    private fun runRefresh() {
-        try {
-            if (disposed) return
-            val client = activeWebSocketClient
-            if (client == null || selectedSerial == null) {
-                finishConnectionFailure(
-                    BridgeWebSocketResult.Failure("The bridge is not connected.", "NOT_CONNECTED"),
-                )
-                return
-            }
-            when (val result = client.getSnapshot()) {
-                is BridgeWebSocketResult.Success -> finishSnapshot(result.value)
-                is BridgeWebSocketResult.Failure -> finishConnectionFailure(result)
-            }
-        } catch (exception: Exception) {
-            finishError(exception.message ?: "Unexpected refresh error.")
         }
     }
 

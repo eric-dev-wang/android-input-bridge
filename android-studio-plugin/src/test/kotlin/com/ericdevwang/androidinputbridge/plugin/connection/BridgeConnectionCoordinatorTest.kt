@@ -62,24 +62,6 @@ class BridgeConnectionCoordinatorTest {
     }
 
     @Test
-    fun refreshUsesWebSocketSnapshotWithoutRunningAdbAgain() {
-        val adb = FakeAdbClient(deviceLists = ArrayDeque(listOf(listOf(AdbDevice("serial", "Pixel 8")))))
-        val client = RecordingWebSocketClient(
-            snapshotResult = BridgeWebSocketResult.Success(TextSnapshot("updated", 18L, 101L)),
-        )
-        val coordinator = newCoordinator(adb = adb, client = client)
-        coordinator.reconnect()
-        val actionCountAfterReconnect = adb.actions.size
-
-        coordinator.refresh()
-
-        assertEquals(actionCountAfterReconnect, adb.actions.size)
-        assertEquals(1, client.snapshotCalls)
-        assertEquals("updated", coordinator.state.text)
-        assertEquals(18L, coordinator.state.version)
-    }
-
-    @Test
     fun pushedTextChangedUpdatesDisplayedStateWithoutPolling() {
         val client = RecordingWebSocketClient()
         val coordinator = newCoordinator(client = client)
@@ -131,28 +113,12 @@ class BridgeConnectionCoordinatorTest {
         val actionCount = adb.actions.size
 
         coordinator.copyAndClear()
-        coordinator.refresh()
         coordinator.reconnect()
         coordinator.selectDevice("serial")
 
         assertTrue(coordinator.state.isBusy)
         assertEquals(actionCount, adb.actions.size)
         assertEquals(1, executor.queuedTasks.size)
-    }
-
-    @Test
-    fun duplicateRefreshIsIgnoredWhileFirstRefreshIsBusy() {
-        val executor = QueueAfterFirstExecutor()
-        val client = RecordingWebSocketClient()
-        val coordinator = newCoordinator(client = client, executor = executor)
-        coordinator.reconnect()
-
-        coordinator.refresh()
-        coordinator.refresh()
-
-        assertEquals(1, executor.queuedTasks.size)
-        executor.runNext()
-        assertEquals(1, client.snapshotCalls)
     }
 
     @Test
