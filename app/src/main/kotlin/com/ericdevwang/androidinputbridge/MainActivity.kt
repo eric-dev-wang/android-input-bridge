@@ -2,20 +2,15 @@ package com.ericdevwang.androidinputbridge
 
 import android.Manifest
 import android.content.Intent
-import android.os.Bundle
-import android.os.Build
 import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.colorResource
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import com.ericdevwang.androidinputbridge.R
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.ericdevwang.androidinputbridge.service.InputBridgeService
 import com.ericdevwang.androidinputbridge.theme.AndroidInputBridgeTheme
 
@@ -37,12 +32,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AndroidInputBridgeTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = colorResource(R.color.app_background),
-                ) {
-                    MainNavigation()
-                }
+                MainNavigation()
             }
         }
     }
