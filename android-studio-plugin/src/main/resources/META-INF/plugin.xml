@@ -4,10 +4,10 @@
     <vendor>Android Input Bridge</vendor>
 
     <description><![CDATA[
-        Displays temporary text from Android Input Bridge in an Android Studio tool window.
+        Displays temporary text from Android Input Bridge in an IntelliJ Platform tool window.
     ]]></description>
 
-    <depends>com.intellij.modules.androidstudio</depends>
+    <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.android</depends>
 
     <extensions defaultExtensionNs="com.intellij">

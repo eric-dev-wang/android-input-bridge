@@ -6,7 +6,7 @@ This repository uses one root Gradle project with two product modules and one sh
 
 - `app/`: Kotlin Android application, with production code under `app/src/main`, unit tests under `app/src/test`, and Android resources under `app/src/main/res`.
 - `protocol/`: plain Kotlin/JVM WebSocket protocol module, with shared wire models under `protocol/src/main/kotlin` and serialization tests under `protocol/src/test/kotlin`.
-- `android-studio-plugin/`: Kotlin IntelliJ Platform plugin module, with code under `src/main/kotlin`, tests under `src/test/kotlin`, and plugin metadata under `src/main/resources/META-INF`.
+- `android-studio-plugin/`: Kotlin IntelliJ Platform plugin module targeting Android Studio and IntelliJ IDEA, with code under `src/main/kotlin`, tests under `src/test/kotlin`, and plugin metadata under `src/main/resources/META-INF`.
 - `docs/`: requirements, commit conventions, and implementation notes.
 - `.github/workflows/`: pull request/main CI and push-tag release workflow using `bridgeVersion` for artifacts.
 - `.worktrees/`: local isolated Git worktrees used for feature implementation; its contents are not committed.
@@ -38,6 +38,8 @@ Run commands from the repository root:
 ```
 
 Use `adb forward tcp:18080 tcp:18080` for manual end-to-end checks. WebSocket and ADB operations must run off the IntelliJ EDT and use bounded timeouts.
+
+Plugin tasks default to IntelliJ IDEA 2026.1.1 with Android plugin `261.23567.138`. Use `-PandroidStudioPath` only when validating against a local Android Studio installation.
 
 ## Coding Style & Naming Conventions
 
