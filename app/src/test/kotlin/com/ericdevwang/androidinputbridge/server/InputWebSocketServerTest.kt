@@ -31,6 +31,7 @@ import kotlinx.serialization.encodeToString
 import java.net.BindException
 import java.net.ServerSocket
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class InputWebSocketServerTest {
@@ -253,6 +254,27 @@ class InputWebSocketServerTest {
     }
 
     @Test
+    fun firstMessageMustBeHello() = testApplication {
+        application {
+            module(WebSocketFakeTextRepository(TextState.initial(0L)), appVersion = "1.0.1")
+        }
+
+        val client = createClient { install(WebSockets) }
+        client.webSocket(ProtocolConstants.WEBSOCKET_PATH) {
+            sendMessage(GetSnapshotCommand("snapshot-before-hello"))
+
+            assertEquals(
+                BridgeError(
+                    code = "INVALID_HANDSHAKE",
+                    message = "The first WebSocket message must be hello.",
+                    requestId = "snapshot-before-hello",
+                ),
+                incoming.receiveMessage(),
+            )
+        }
+    }
+
+    @Test
     fun malformedMessageReturnsError() = testApplication {
         application {
             module(WebSocketFakeTextRepository(TextState.initial(0L)), appVersion = "1.0.1")
@@ -269,6 +291,147 @@ class InputWebSocketServerTest {
                 ),
                 incoming.receiveMessage(),
             )
+        }
+    }
+
+    @Test
+    fun binaryMessageReturnsMalformedError() = testApplication {
+        application {
+            module(WebSocketFakeTextRepository(TextState.initial(0L)), appVersion = "1.0.1")
+        }
+
+        val client = createClient { install(WebSockets) }
+        client.webSocket(ProtocolConstants.WEBSOCKET_PATH) {
+            send(Frame.Binary(fin = true, data = byteArrayOf(1, 2, 3)))
+
+            assertEquals(
+                BridgeError(
+                    code = "MALFORMED_MESSAGE",
+                    message = "WebSocket message is not a supported text frame.",
+                ),
+                incoming.receiveMessage(),
+            )
+        }
+    }
+
+    @Test
+    fun malformedMessageAfterHandshakeReturnsError() = testApplication {
+        application {
+            module(WebSocketFakeTextRepository(TextState.initial(0L)), appVersion = "1.0.1")
+        }
+
+        val client = createClient { install(WebSockets) }
+        client.webSocket(ProtocolConstants.WEBSOCKET_PATH) {
+            sendMessage(HelloCommand(ProtocolConstants.CURRENT_VERSION, "hello-1"))
+            incoming.receiveMessage()
+            incoming.receiveMessage()
+            send(Frame.Text("not-json"))
+
+            assertEquals(
+                BridgeError(
+                    code = "MALFORMED_MESSAGE",
+                    message = "WebSocket message is not valid protocol JSON.",
+                ),
+                incoming.receiveMessage(),
+            )
+        }
+    }
+
+    @Test
+    fun unexpectedMessageAfterHandshakeReturnsError() = testApplication {
+        application {
+            module(WebSocketFakeTextRepository(TextState.initial(0L)), appVersion = "1.0.1")
+        }
+
+        val client = createClient { install(WebSockets) }
+        client.webSocket(ProtocolConstants.WEBSOCKET_PATH) {
+            sendMessage(HelloCommand(ProtocolConstants.CURRENT_VERSION, "hello-1"))
+            incoming.receiveMessage()
+            incoming.receiveMessage()
+            sendMessage(HelloCommand(ProtocolConstants.CURRENT_VERSION, "hello-2"))
+
+            assertEquals(
+                BridgeError(
+                    code = "UNEXPECTED_MESSAGE",
+                    message = "This message is not valid after the handshake.",
+                    requestId = "hello-2",
+                ),
+                incoming.receiveMessage(),
+            )
+        }
+    }
+
+    @Test
+    fun oversizedTextFrameIsRejected() = testApplication {
+        application {
+            module(WebSocketFakeTextRepository(TextState.initial(0L)), appVersion = "1.0.1")
+        }
+
+        val client = createClient { install(WebSockets) }
+        client.webSocket(ProtocolConstants.WEBSOCKET_PATH) {
+            sendMessage(HelloCommand(ProtocolConstants.CURRENT_VERSION, "hello-1"))
+            incoming.receiveMessage()
+            incoming.receiveMessage()
+            send(Frame.Text("x".repeat(ProtocolConstants.MAX_WEBSOCKET_MESSAGE_BYTES + 1)))
+
+            assertTrue(incoming.receiveCatching().isClosed)
+        }
+    }
+
+    @Test
+    fun clearFailureReturnsErrorAndKeepsSessionUsable() = testApplication {
+        val repository = WebSocketFakeTextRepository(
+            initialState = TextState("text", 3L, 10L),
+            clearFailure = IllegalStateException("persistence failed"),
+        )
+        application { module(repository, appVersion = "1.0.1") }
+
+        val client = createClient { install(WebSockets) }
+        client.webSocket(ProtocolConstants.WEBSOCKET_PATH) {
+            sendMessage(HelloCommand(ProtocolConstants.CURRENT_VERSION, "hello-1"))
+            incoming.receiveMessage()
+            incoming.receiveMessage()
+            sendMessage(ClearCommand(expectedVersion = 3L, requestId = "clear-1"))
+
+            assertEquals(
+                BridgeError(
+                    code = "TEXT_CLEAR_FAILED",
+                    message = "Current text could not be cleared.",
+                    requestId = "clear-1",
+                ),
+                incoming.receiveMessage(),
+            )
+
+            sendMessage(GetSnapshotCommand("snapshot-1"))
+            assertEquals(
+                TextSnapshot("text", 3L, 10L, requestId = "snapshot-1"),
+                incoming.receiveMessage(),
+            )
+        }
+    }
+
+    @Test
+    fun multipleSessionsReceiveTheSameTextChange() = testApplication {
+        val repository = WebSocketFakeTextRepository(TextState("before", 1L, 1L))
+        application { module(repository, appVersion = "1.0.1") }
+
+        val client = createClient { install(WebSockets) }
+        client.webSocket(ProtocolConstants.WEBSOCKET_PATH) {
+            sendMessage(HelloCommand(ProtocolConstants.CURRENT_VERSION, "hello-1"))
+            incoming.receiveMessage()
+            incoming.receiveMessage()
+            val firstIncoming = incoming
+
+            client.webSocket(ProtocolConstants.WEBSOCKET_PATH) {
+                sendMessage(HelloCommand(ProtocolConstants.CURRENT_VERSION, "hello-2"))
+                incoming.receiveMessage()
+                incoming.receiveMessage()
+
+                repository.emit(TextState("after", 2L, 2L))
+
+                assertEquals(TextChanged("after", 2L, 2L), incoming.receiveMessage())
+                assertEquals(TextChanged("after", 2L, 2L), firstIncoming.receiveMessage())
+            }
         }
     }
 
@@ -310,6 +473,7 @@ private class WebSocketFakeTextRepository(
         clearedVersion = initialState.version,
         newVersion = initialState.version + 1L,
     ),
+    private val clearFailure: Throwable? = null,
 ) : TextRepository {
     private val mutableState = MutableStateFlow(initialState)
 
@@ -323,6 +487,7 @@ private class WebSocketFakeTextRepository(
 
     override suspend fun clear(expectedVersion: Long): ClearResult {
         clearCalls += 1
+        clearFailure?.let { throw it }
         if (clearResult is ClearResult.Cleared) {
             mutableState.value = mutableState.value.copy(
                 text = "",
