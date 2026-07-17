@@ -8,8 +8,8 @@ class BridgeNetworkConfigTest {
     @Test
     fun usesFixedBridgePortAndTimeouts() {
         assertEquals(18080, BridgeNetworkConfig.PORT)
-        assertEquals(Duration.ofSeconds(1), BridgeNetworkConfig.httpConnectTimeout)
-        assertEquals(Duration.ofSeconds(2), BridgeNetworkConfig.httpRequestTimeout)
+        assertEquals(Duration.ofSeconds(1), BridgeNetworkConfig.websocketConnectTimeout)
+        assertEquals(Duration.ofSeconds(2), BridgeNetworkConfig.websocketRequestTimeout)
         assertEquals(Duration.ofSeconds(5), BridgeNetworkConfig.adbTimeout)
     }
 }

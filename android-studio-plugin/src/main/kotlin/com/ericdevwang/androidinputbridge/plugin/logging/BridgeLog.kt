@@ -9,10 +9,6 @@ internal object BridgeLog {
         logger.info(textFetchedMessage(version, length))
     }
 
-    fun httpResponse(method: String, path: String, statusCode: Int) {
-        logger.info("HTTP response: method=$method, path=$path, status=$statusCode")
-    }
-
     fun adbCommand(command: String, exitCode: Int?, timedOut: Boolean) {
         logger.info("ADB command completed: command=$command, exitCode=$exitCode, timedOut=$timedOut")
     }
