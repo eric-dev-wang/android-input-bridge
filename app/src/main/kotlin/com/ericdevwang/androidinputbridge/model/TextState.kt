@@ -1,6 +1,6 @@
 package com.ericdevwang.androidinputbridge.model
 
-const val MAX_TEXT_CODE_POINTS = 100_000
+const val MAX_TEXT_CODE_POINTS = 8_000
 
 data class TextState(
     val text: String,

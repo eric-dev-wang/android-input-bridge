@@ -5,6 +5,11 @@ import org.junit.Test
 
 class TextStateTest {
     @Test
+    fun maximumTextLengthIs8000CodePoints() {
+        assertEquals(8_000, MAX_TEXT_CODE_POINTS)
+    }
+
+    @Test
     fun changedTextIncrementsVersionAndUpdatesTimestamp() {
         val old = TextState("old", version = 4L, updatedAt = 100L)
 
