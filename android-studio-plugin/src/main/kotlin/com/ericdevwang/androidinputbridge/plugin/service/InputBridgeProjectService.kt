@@ -6,9 +6,8 @@ import com.ericdevwang.androidinputbridge.plugin.adb.RandomDeviceSelector
 import com.ericdevwang.androidinputbridge.plugin.clipboard.IntellijClipboardWriter
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionController
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionCoordinator
-import com.ericdevwang.androidinputbridge.plugin.connection.ExecutorPollingScheduler
-import com.ericdevwang.androidinputbridge.plugin.http.JdkHttpProbeClient
-import com.ericdevwang.androidinputbridge.plugin.http.JdkHttpProbeTransport
+import com.ericdevwang.androidinputbridge.plugin.connection.JdkBridgeWebSocketClient
+import com.ericdevwang.androidinputbridge.plugin.connection.JdkWebSocketTransport
 import com.ericdevwang.androidinputbridge.plugin.notifications.InputBridgeNotifier
 import com.ericdevwang.androidinputbridge.plugin.notifications.IntelliJInputBridgeNotifier
 import com.intellij.openapi.Disposable
@@ -23,12 +22,9 @@ class InputBridgeProjectService(
     val connectionController: BridgeConnectionController = BridgeConnectionCoordinator(
         adbLocator = AdbLocator.forProject(project),
         adbClientFactory = { adbPath -> ProcessAdbClient(adbPath) },
-        httpProbeClientFactory = {
-            JdkHttpProbeClient(JdkHttpProbeTransport.create())
-        },
+        webSocketClientFactory = { JdkBridgeWebSocketClient(JdkWebSocketTransport.create()) },
         deviceSelector = RandomDeviceSelector(),
         executor = AppExecutorUtil.getAppExecutorService(),
-        pollingScheduler = ExecutorPollingScheduler(AppExecutorUtil.getAppScheduledExecutorService()),
         clipboardWriter = IntellijClipboardWriter(),
     )
 
