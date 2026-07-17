@@ -38,8 +38,6 @@ interface BridgeConnectionController : Disposable {
 
     fun reconnect()
 
-    fun refresh()
-
     fun selectDevice(serial: String)
 
     fun copy()

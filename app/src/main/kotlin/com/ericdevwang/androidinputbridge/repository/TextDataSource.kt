@@ -7,6 +7,4 @@ interface TextDataSource {
     val state: Flow<TextState>
 
     suspend fun saveIfNewer(state: TextState): Boolean
-
-    suspend fun clearIfVersion(expectedVersion: Long, nowMillis: Long): ClearResult
 }

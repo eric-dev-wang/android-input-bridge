@@ -5,13 +5,12 @@ import java.time.Duration
 
 object BridgeNetworkConfig {
     const val HOST = ProtocolConstants.LOCALHOST
-    const val PORT = ProtocolConstants.HTTP_PORT
+    const val PORT = ProtocolConstants.SERVER_PORT
     const val ADB_TIMEOUT_SECONDS = 5L
-    const val HTTP_CONNECT_TIMEOUT_SECONDS = 1L
-    const val HTTP_REQUEST_TIMEOUT_SECONDS = 2L
-    const val HTTP_POLL_INTERVAL_MILLIS = 300L
+    const val WEBSOCKET_CONNECT_TIMEOUT_SECONDS = 1L
+    const val WEBSOCKET_REQUEST_TIMEOUT_SECONDS = 2L
 
     val adbTimeout: Duration = Duration.ofSeconds(ADB_TIMEOUT_SECONDS)
-    val httpConnectTimeout: Duration = Duration.ofSeconds(HTTP_CONNECT_TIMEOUT_SECONDS)
-    val httpRequestTimeout: Duration = Duration.ofSeconds(HTTP_REQUEST_TIMEOUT_SECONDS)
+    val websocketConnectTimeout: Duration = Duration.ofSeconds(WEBSOCKET_CONNECT_TIMEOUT_SECONDS)
+    val websocketRequestTimeout: Duration = Duration.ofSeconds(WEBSOCKET_REQUEST_TIMEOUT_SECONDS)
 }

@@ -5,10 +5,12 @@ import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionCont
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeConnectionState
 import com.ericdevwang.androidinputbridge.plugin.connection.BridgeState
 import com.ericdevwang.androidinputbridge.plugin.notifications.InputBridgeNotifier
+import java.awt.Color
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.swing.SwingUtilities
+import javax.swing.UIManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -19,7 +21,7 @@ class InputBridgePanelTest {
     fun panelStartsIdleAndDisablesOutOfScopeClipboardActions() = onEdt {
         val panel = InputBridgePanel(FakeController())
 
-        assertEquals("Status: Idle", panel.statusTextLabel.text)
+        assertEquals("Connecting…", panel.statusTextLabel.text)
         assertFalse(panel.copyButton.isEnabled)
         assertFalse(panel.copyAndClearButton.isEnabled)
     }
@@ -42,17 +44,56 @@ class InputBridgePanelTest {
             ),
         )
 
-        assertEquals("Status: Connected", panel.statusTextLabel.text)
+        assertEquals("Connected", panel.statusTextLabel.text)
         assertEquals("Pixel 8 (serial)", (panel.deviceSelector.selectedItem as AdbDevice).displayName)
         assertEquals("你好\n👋", panel.textArea.text)
         val expectedTime = DateTimeFormatter.ofPattern("HH:mm:ss")
             .withZone(ZoneId.systemDefault())
             .format(Instant.parse("2026-07-13T12:00:00Z"))
-        assertEquals("Last refresh: $expectedTime", panel.lastRefreshLabel.text)
-        assertTrue(panel.refreshButton.isEnabled)
+        assertEquals("Last synced: $expectedTime", panel.lastSyncLabel.text)
         assertTrue(panel.reconnectButton.isEnabled)
         assertTrue(panel.copyButton.isEnabled)
         assertTrue(panel.copyAndClearButton.isEnabled)
+    }
+
+    @Test
+    fun panelHighlightsReconnectWhenConnectionNeedsRecovery() = onEdt {
+        val controller = FakeController()
+        val panel = InputBridgePanel(controller)
+
+        controller.replace(
+            BridgeState(
+                connectionState = BridgeConnectionState.SERVER_OFFLINE,
+                errorMessage = "Server is offline.",
+            ),
+        )
+
+        assertTrue(panel.reconnectButton.getClientProperty("androidInputBridge.reconnectHighlight") == true)
+        assertEquals("Server is offline.", panel.feedbackLabel.text)
+    }
+
+    @Test
+    fun panelUsesCurrentLookAndFeelColorsAfterThemeChanges() = onEdt {
+        val controller = FakeController()
+        val panel = InputBridgePanel(controller)
+        val originalButtonForeground = UIManager.get("Button.foreground")
+        val originalButtonBackground = UIManager.get("Button.background")
+        val originalLabelForeground = UIManager.get("Label.foreground")
+        try {
+            UIManager.put("Button.foreground", Color.MAGENTA)
+            UIManager.put("Button.background", Color.CYAN)
+            UIManager.put("Label.foreground", Color.ORANGE)
+
+            controller.replace(connectedState(text = "text"))
+
+            assertEquals(Color.MAGENTA, panel.reconnectButton.foreground)
+            assertEquals(Color.CYAN, panel.reconnectButton.background)
+            assertEquals(Color.ORANGE, panel.feedbackLabel.foreground)
+        } finally {
+            restoreUiManagerValue("Button.foreground", originalButtonForeground)
+            restoreUiManagerValue("Button.background", originalButtonBackground)
+            restoreUiManagerValue("Label.foreground", originalLabelForeground)
+        }
     }
 
     @Test
@@ -76,12 +117,29 @@ class InputBridgePanelTest {
     }
 
     @Test
+    fun panelShowsWaitingPlaceholderBeforeFirstSync() = onEdt {
+        val panel = InputBridgePanel(FakeController())
+
+        assertEquals("Waiting for the first sync…", panel.contentPlaceholderLabel.text)
+        assertEquals("", panel.textArea.text)
+    }
+
+    @Test
+    fun panelShowsEmptyPlaceholderAfterConnectedSync() = onEdt {
+        val controller = FakeController()
+        val panel = InputBridgePanel(controller)
+        controller.replace(connectedState(text = "").copy(lastRefresh = Instant.parse("2026-07-13T12:00:00Z")))
+
+        assertEquals("No text available", panel.contentPlaceholderLabel.text)
+        assertEquals("", panel.textArea.text)
+    }
+
+    @Test
     fun panelDisablesAllBridgeActionsWhileBusy() = onEdt {
         val controller = FakeController()
         val panel = InputBridgePanel(controller)
         controller.replace(connectedState(text = "text", isBusy = true))
 
-        assertFalse(panel.refreshButton.isEnabled)
         assertFalse(panel.copyButton.isEnabled)
         assertFalse(panel.copyAndClearButton.isEnabled)
         assertFalse(panel.reconnectButton.isEnabled)
@@ -91,13 +149,12 @@ class InputBridgePanelTest {
     @Test
     fun actionButtonsWrapWhenToolWindowIsNarrow() = onEdt {
         val panel = InputBridgePanel(FakeController())
-        val actionPanel = panel.refreshButton.parent as javax.swing.JPanel
+        val actionPanel = panel.copyButton.parent as javax.swing.JPanel
 
         actionPanel.setSize(200, 100)
         actionPanel.doLayout()
 
         val buttonRows = setOf(
-            panel.refreshButton.y,
             panel.copyButton.y,
             panel.copyAndClearButton.y,
             panel.reconnectButton.y,
@@ -108,13 +165,12 @@ class InputBridgePanelTest {
     @Test
     fun actionButtonsStayOnOneRowWhenToolWindowIsWide() = onEdt {
         val panel = InputBridgePanel(FakeController())
-        val actionPanel = panel.refreshButton.parent as javax.swing.JPanel
+        val actionPanel = panel.copyButton.parent as javax.swing.JPanel
 
         actionPanel.setSize(800, 100)
         actionPanel.doLayout()
 
         val buttonRows = setOf(
-            panel.refreshButton.y,
             panel.copyButton.y,
             panel.copyAndClearButton.y,
             panel.reconnectButton.y,
@@ -178,6 +234,14 @@ class InputBridgePanelTest {
         isBusy = isBusy,
     )
 
+    private fun restoreUiManagerValue(key: String, value: Any?) {
+        if (value == null) {
+            UIManager.getDefaults().remove(key)
+        } else {
+            UIManager.put(key, value)
+        }
+    }
+
     private class RecordingNotifier : InputBridgeNotifier {
         val messages = mutableListOf<String>()
 
@@ -203,8 +267,6 @@ class InputBridgePanelTest {
         }
 
         override fun reconnect() = Unit
-
-        override fun refresh() = Unit
 
         override fun selectDevice(serial: String) = Unit
 

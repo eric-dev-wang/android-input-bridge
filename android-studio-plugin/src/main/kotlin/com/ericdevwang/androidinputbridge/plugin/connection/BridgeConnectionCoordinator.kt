@@ -1,20 +1,15 @@
 package com.ericdevwang.androidinputbridge.plugin.connection
 
 import com.ericdevwang.androidinputbridge.plugin.adb.AdbClient
-import com.ericdevwang.androidinputbridge.plugin.adb.AdbDevice
 import com.ericdevwang.androidinputbridge.plugin.adb.AdbLocator
 import com.ericdevwang.androidinputbridge.plugin.adb.AdbResult
 import com.ericdevwang.androidinputbridge.plugin.adb.DeviceSelector
 import com.ericdevwang.androidinputbridge.plugin.adb.PortForwardManager
 import com.ericdevwang.androidinputbridge.plugin.clipboard.ClipboardWriteResult
 import com.ericdevwang.androidinputbridge.plugin.clipboard.ClipboardWriter
-import com.ericdevwang.androidinputbridge.plugin.http.BridgeProbe
-import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeClient
-import com.ericdevwang.androidinputbridge.plugin.http.HttpProbeResult
-import com.ericdevwang.androidinputbridge.plugin.http.ProbeError
-import com.ericdevwang.androidinputbridge.plugin.http.ProbeFailureCategory
 import com.ericdevwang.androidinputbridge.plugin.logging.BridgeLog
-import com.ericdevwang.androidinputbridge.protocol.TextResponse
+import com.ericdevwang.androidinputbridge.protocol.TextChanged
+import com.ericdevwang.androidinputbridge.protocol.TextSnapshot
 import com.intellij.openapi.Disposable
 import java.nio.file.Path
 import java.time.Instant
@@ -23,10 +18,9 @@ import java.util.concurrent.Executor
 class BridgeConnectionCoordinator(
     private val adbLocator: AdbLocator,
     private val adbClientFactory: (Path) -> AdbClient,
-    private val httpProbeClientFactory: () -> HttpProbeClient,
+    private val webSocketClientFactory: () -> BridgeWebSocketClient,
     private val deviceSelector: DeviceSelector,
     private val executor: Executor,
-    private val pollingScheduler: PollingScheduler,
     private val clipboardWriter: ClipboardWriter,
     private val clock: () -> Instant = { Instant.now() },
 ) : BridgeConnectionController {
@@ -40,7 +34,7 @@ class BridgeConnectionCoordinator(
     private var activeAdbClient: AdbClient? = null
 
     @Volatile
-    private var activeProbeClient: HttpProbeClient? = null
+    private var activeWebSocketClient: BridgeWebSocketClient? = null
 
     @Volatile
     private var selectedSerial: String? = null
@@ -48,21 +42,18 @@ class BridgeConnectionCoordinator(
     @Volatile
     private var busy = false
 
-    @Volatile
-    private var pollingHandle: PollingHandle? = null
-
     private data class StateNotification(
         val state: BridgeState,
         val listeners: List<(BridgeState) -> Unit>,
     )
 
-    private data class TextSnapshot(
+    private data class DisplayedTextSnapshot(
         val text: String,
         val version: Long?,
     )
 
     private data class OperationStart(
-        val snapshot: TextSnapshot,
+        val snapshot: DisplayedTextSnapshot,
         val notification: StateNotification,
     )
 
@@ -93,17 +84,6 @@ class BridgeConnectionCoordinator(
         submit { runReconnect() }
     }
 
-    override fun refresh() {
-        val notification = synchronized(lock) {
-            if (disposed || busy) return
-            busy = true
-            val newState = state.copy(isBusy = true, errorMessage = null)
-            StateNotification(newState, publishLocked(newState))
-        }
-        notifyListeners(notification)
-        submit { runRefresh() }
-    }
-
     override fun selectDevice(serial: String) {
         val notification = synchronized(lock) {
             if (disposed || busy || state.devices.none { it.serial == serial }) return
@@ -128,24 +108,21 @@ class BridgeConnectionCoordinator(
     }
 
     override fun dispose() {
-        var pollingToCancel: PollingHandle? = null
-        val probeToClose = synchronized(lock) {
+        val clientToClose = synchronized(lock) {
             if (disposed) return
             disposed = true
             busy = false
-            pollingToCancel = pollingHandle
-            pollingHandle = null
             activeAdbClient = null
-            val probe = activeProbeClient
-            activeProbeClient = null
+            val client = activeWebSocketClient
+            activeWebSocketClient = null
             listeners.clear()
-            probe
+            client
         }
-        pollingToCancel?.cancel()
-        probeToClose?.let(::closeProbeAsync)
+        clientToClose?.let(::closeWebSocketAsync)
     }
 
     private fun runReconnect() {
+        closeActiveWebSocket()
         try {
             if (disposed) return
             val adbPath = adbLocator.locate()
@@ -211,185 +188,212 @@ class BridgeConnectionCoordinator(
                 is AdbResult.Success -> Unit
             }
 
-            val probe = getOrCreateProbe() ?: return
-            when (val result = probe.probe()) {
-                is HttpProbeResult.Success -> finishConnected(result.value)
-                is HttpProbeResult.Failure -> {
-                    if (result.error.category != ProbeFailureCategory.CONNECTION || !result.error.retryable) {
-                        finishProbeFailure(result.error)
+            var result = connectWebSocket()
+            if (result is BridgeWebSocketResult.Failure && result.code == "WEBSOCKET_CONNECTION_FAILED") {
+                result = when (val rebuilt = forwardManager.rebuildForward(selected)) {
+                    is AdbResult.Failure -> {
+                        finishError("ADB port forwarding failed: ${rebuilt.error.message}")
                         return
                     }
-                    when (val rebuilt = forwardManager.rebuildForward(selected)) {
-                        is AdbResult.Failure -> finishError("ADB port forwarding failed: ${rebuilt.error.message}")
-                        is AdbResult.Success -> when (val retry = probe.probe()) {
-                            is HttpProbeResult.Success -> finishConnected(retry.value)
-                            is HttpProbeResult.Failure -> finishProbeFailure(retry.error)
-                        }
-                    }
+                    is AdbResult.Success -> connectWebSocket()
                 }
+            }
+            when (result) {
+                is BridgeWebSocketResult.Success -> finishConnected(result.value)
+                is BridgeWebSocketResult.Failure -> finishConnectionFailure(result)
             }
         } catch (exception: Exception) {
             finishError(exception.message ?: "Unexpected connection error.")
         }
     }
 
-    private fun runRefresh() {
-        try {
-            if (disposed) return
-            val probe = activeProbeClient
-            if (probe == null || selectedSerial == null) {
-                finishProbeFailureMessage("The bridge is not connected.")
-                return
-            }
-            when (val result = probe.fetchText()) {
-                is HttpProbeResult.Success -> finishText(result.value)
-                is HttpProbeResult.Failure -> finishProbeFailure(result.error)
-            }
-        } catch (exception: Exception) {
-            finishError(exception.message ?: "Unexpected refresh error.")
-        }
-    }
-
-    private fun runPollingTick() {
-        try {
-            val shouldPoll = synchronized(lock) {
-                if (
-                    disposed ||
-                    busy ||
-                    state.connectionState != BridgeConnectionState.CONNECTED ||
-                    activeProbeClient == null ||
-                    selectedSerial == null
-                ) {
-                    false
-                } else {
-                    busy = true
-                    true
-                }
-            }
-            if (!shouldPoll) return
-
-            submit { runPollingRefresh() }
-        } catch (exception: Exception) {
-            finishError(exception.message ?: "Unexpected polling scheduling error.")
-        }
-    }
-
-    private fun runPollingRefresh() {
-        try {
-            if (disposed) return
-            val probe = activeProbeClient
-            if (probe == null || selectedSerial == null) {
-                finishProbeFailureMessage("The bridge is not connected.")
-                return
-            }
-            when (val result = probe.fetchText()) {
-                is HttpProbeResult.Success -> finishPolledText(result.value)
-                is HttpProbeResult.Failure -> finishProbeFailure(result.error)
-            }
-        } catch (exception: Exception) {
-            finishError(exception.message ?: "Unexpected polling error.")
-        }
-    }
-
-    private fun runCopy(snapshot: TextSnapshot) {
+    private fun runCopy(snapshot: DisplayedTextSnapshot) {
         if (disposed) return
         val result = runCatching { clipboardWriter.write(snapshot.text) }
             .getOrElse { ClipboardWriteResult.Failure(CLIPBOARD_FAILURE_MESSAGE, it) }
         when (result) {
             ClipboardWriteResult.Success -> finish(
-                state.copy(
-                    errorMessage = null,
-                    feedbackMessage = COPIED_MESSAGE,
-                ),
+                state.copy(errorMessage = null, feedbackMessage = COPIED_MESSAGE),
             )
             is ClipboardWriteResult.Failure -> finish(
-                state.copy(
-                    errorMessage = null,
-                    feedbackMessage = result.message,
-                ),
+                state.copy(errorMessage = null, feedbackMessage = result.message),
             )
         }
     }
 
-    private fun runCopyAndClear(snapshot: TextSnapshot) {
+    private fun runCopyAndClear(snapshot: DisplayedTextSnapshot) {
         if (disposed) return
         val clipboardResult = runCatching { clipboardWriter.write(snapshot.text) }
             .getOrElse { ClipboardWriteResult.Failure(CLIPBOARD_FAILURE_MESSAGE, it) }
         when (clipboardResult) {
             is ClipboardWriteResult.Failure -> {
-                finish(
-                    state.copy(
-                        errorMessage = null,
-                        feedbackMessage = clipboardResult.message,
-                    ),
-                )
+                finish(state.copy(errorMessage = null, feedbackMessage = clipboardResult.message))
                 return
             }
             ClipboardWriteResult.Success -> Unit
         }
 
         if (disposed) return
-        val probe = activeProbeClient
-        if (probe == null || snapshot.version == null) {
+        val client = activeWebSocketClient
+        val expectedVersion = snapshot.version
+        if (client == null || expectedVersion == null) {
             finishClearFailure()
             return
         }
 
-        val clearResult = runCatching { probe.clearText(snapshot.version) }
-            .getOrElse {
-                HttpProbeResult.Failure(
-                    ProbeError(
-                        category = ProbeFailureCategory.CONNECTION,
-                        message = it.message ?: "Clear request failed.",
-                        retryable = true,
-                        cause = it,
+        when (val result = runCatching { client.clearText(expectedVersion) }
+            .getOrElse { BridgeWebSocketResult.Failure("Clear request failed.", cause = it) }) {
+            is BridgeWebSocketResult.Success -> when (val clear = result.value) {
+                is BridgeClearResult.Cleared -> finish(
+                    state.copy(
+                        text = "",
+                        version = clear.newVersion,
+                        lastRefresh = clock(),
+                        errorMessage = null,
+                        feedbackMessage = COPIED_AND_CLEARED_MESSAGE,
                     ),
                 )
+                is BridgeClearResult.VersionConflict -> refreshAfterConflict(client)
             }
-        when (clearResult) {
-            is HttpProbeResult.Success -> finish(
-                state.copy(
-                    text = "",
-                    version = clearResult.value.newVersion,
-                    lastRefresh = clock(),
-                    errorMessage = null,
-                    feedbackMessage = COPIED_AND_CLEARED_MESSAGE,
-                ),
-            )
-            is HttpProbeResult.Failure -> {
-                if (clearResult.error.statusCode == VERSION_CONFLICT_STATUS) {
-                    refreshAfterConflict(probe)
-                } else {
-                    finishClearFailure()
-                }
-            }
+            is BridgeWebSocketResult.Failure -> finishClearFailure()
         }
     }
 
-    private fun refreshAfterConflict(probe: HttpProbeClient) {
+    private fun refreshAfterConflict(client: BridgeWebSocketClient) {
         if (disposed) return
-        val refreshed = runCatching { probe.fetchText() }
-            .getOrElse {
-                HttpProbeResult.Failure(
-                    ProbeError(
-                        category = ProbeFailureCategory.CONNECTION,
-                        message = it.message ?: "Refresh request failed.",
-                        retryable = true,
-                        cause = it,
-                    ),
-                )
-            }
-        when (refreshed) {
-            is HttpProbeResult.Success -> finish(
+        when (val result = client.getSnapshot()) {
+            is BridgeWebSocketResult.Success -> finish(
                 state.copy(
-                    text = refreshed.value.text,
-                    version = refreshed.value.version,
+                    text = result.value.text,
+                    version = result.value.version,
                     lastRefresh = clock(),
                     errorMessage = null,
                     feedbackMessage = VERSION_CONFLICT_MESSAGE,
                 ),
             )
-            is HttpProbeResult.Failure -> finishClearFailure()
+            is BridgeWebSocketResult.Failure -> finishClearFailure()
+        }
+    }
+
+    private fun beginTextOperation(requireVersion: Boolean): OperationStart? = synchronized(lock) {
+        if (disposed || busy || state.text.isEmpty()) return@synchronized null
+        if (requireVersion && state.version == null) return@synchronized null
+        busy = true
+        val snapshot = DisplayedTextSnapshot(text = state.text, version = state.version)
+        val newState = state.copy(isBusy = true, errorMessage = null, feedbackMessage = null)
+        OperationStart(snapshot, StateNotification(newState, publishLocked(newState)))
+    }
+
+    private fun connectWebSocket(): BridgeWebSocketResult<TextSnapshot> {
+        val client = webSocketClientFactory()
+        val installed = synchronized(lock) {
+            if (disposed) false else {
+                activeWebSocketClient = client
+                true
+            }
+        }
+        if (!installed) {
+            client.close()
+            return BridgeWebSocketResult.Failure("Project has been disposed.", "DISPOSED")
+        }
+
+        val result = client.connect(object : BridgeWebSocketEventListener {
+            override fun onTextChanged(message: TextChanged) {
+                submit { handleTextChanged(client, message) }
+            }
+
+            override fun onClosed(cause: Throwable?) {
+                submit { handleWebSocketClosed(client, cause) }
+            }
+
+            override fun onError(cause: Throwable) {
+                submit { handleWebSocketError(client, cause) }
+            }
+        })
+        if (result is BridgeWebSocketResult.Failure) {
+            detachWebSocket(client)
+            closeWebSocketAsync(client)
+        }
+        return result
+    }
+
+    private fun handleTextChanged(client: BridgeWebSocketClient, message: TextChanged) {
+        val notification = synchronized(lock) {
+            if (disposed || activeWebSocketClient !== client) return
+            if (state.text == message.text && state.version == message.version) return
+            val newState = state.copy(
+                connectionState = BridgeConnectionState.CONNECTED,
+                serverStatus = "Online",
+                text = message.text,
+                version = message.version,
+                lastRefresh = clock(),
+                errorMessage = null,
+                feedbackMessage = null,
+            )
+            StateNotification(newState, publishLocked(newState))
+        }
+        BridgeLog.textFetched(version = message.version, length = message.text.length)
+        notifyListeners(notification)
+    }
+
+    private fun handleWebSocketClosed(client: BridgeWebSocketClient, cause: Throwable?) {
+        if (!detachWebSocket(client)) return
+        finish(
+            state.copy(
+                connectionState = BridgeConnectionState.SERVER_OFFLINE,
+                serverStatus = "Offline",
+                errorMessage = cause?.message ?: "WebSocket connection closed.",
+                feedbackMessage = null,
+            ),
+        )
+        closeWebSocketAsync(client)
+    }
+
+    private fun handleWebSocketError(client: BridgeWebSocketClient, cause: Throwable) {
+        if (!detachWebSocket(client)) return
+        BridgeLog.failure("WebSocket connection", cause)
+        finish(
+            state.copy(
+                connectionState = BridgeConnectionState.ERROR,
+                serverStatus = "Offline",
+                errorMessage = "WebSocket connection failed.",
+                feedbackMessage = null,
+            ),
+        )
+        closeWebSocketAsync(client)
+    }
+
+    private fun finishConnected(snapshot: TextSnapshot) {
+        BridgeLog.textFetched(version = snapshot.version, length = snapshot.text.length)
+        finishSnapshot(snapshot)
+    }
+
+    private fun finishSnapshot(snapshot: TextSnapshot) {
+        finish(
+            state.copy(
+                connectionState = BridgeConnectionState.CONNECTED,
+                serverStatus = "Online",
+                text = snapshot.text,
+                version = snapshot.version,
+                lastRefresh = clock(),
+                errorMessage = null,
+                feedbackMessage = null,
+            ),
+        )
+    }
+
+    private fun finishConnectionFailure(result: BridgeWebSocketResult.Failure) {
+        if (result.code == "WEBSOCKET_CONNECTION_FAILED" || result.code == "WEBSOCKET_CLOSED") {
+            finish(
+                state.copy(
+                    connectionState = BridgeConnectionState.SERVER_OFFLINE,
+                    serverStatus = "Offline",
+                    errorMessage = result.message,
+                    feedbackMessage = null,
+                ),
+            )
+        } else {
+            finishError(result.message)
         }
     }
 
@@ -402,172 +406,33 @@ class BridgeConnectionCoordinator(
         )
     }
 
-    private fun beginTextOperation(requireVersion: Boolean): OperationStart? = synchronized(lock) {
-        if (disposed || busy || state.text.isEmpty()) return@synchronized null
-        if (requireVersion && state.version == null) return@synchronized null
-        busy = true
-        val snapshot = TextSnapshot(text = state.text, version = state.version)
-        val newState = state.copy(
-            isBusy = true,
-            errorMessage = null,
-            feedbackMessage = null,
-        )
-        OperationStart(
-            snapshot = snapshot,
-            notification = StateNotification(newState, publishLocked(newState)),
-        )
-    }
-
-    private fun getOrCreateProbe(): HttpProbeClient? {
-        synchronized(lock) {
-            if (disposed) return null
-            activeProbeClient?.let { return it }
-        }
-
-        val created = httpProbeClientFactory()
-        val selected = synchronized(lock) {
-            if (disposed) null else activeProbeClient ?: created.also { activeProbeClient = it }
-        }
-        if (selected !== created) created.close()
-        return selected
-    }
-
-    private fun finishConnected(probe: BridgeProbe) {
-        BridgeLog.textFetched(version = probe.text.version, length = probe.text.text.length)
-        finish(
-            state.copy(
-                connectionState = BridgeConnectionState.CONNECTED,
-                serverStatus = "Online",
-                text = probe.text.text,
-                version = probe.text.version,
-                lastRefresh = clock(),
-                errorMessage = null,
-                feedbackMessage = null,
-            ),
-        )
-        startPolling()
-    }
-
-    private fun finishText(text: TextResponse) {
-        BridgeLog.textFetched(version = text.version, length = text.text.length)
-        finish(
-            state.copy(
-                connectionState = BridgeConnectionState.CONNECTED,
-                serverStatus = "Online",
-                text = text.text,
-                version = text.version,
-                lastRefresh = clock(),
-                errorMessage = null,
-                feedbackMessage = null,
-            ),
-        )
-    }
-
-    private fun finishPolledText(text: TextResponse) {
-        val notification = synchronized(lock) {
-            if (disposed) return@synchronized null
-            busy = false
-            if (state.text == text.text && state.version == text.version) {
-                state = state.copy(isBusy = false)
-                return@synchronized null
-            }
-            val newState = state.copy(
-                connectionState = BridgeConnectionState.CONNECTED,
-                serverStatus = "Online",
-                text = text.text,
-                version = text.version,
-                lastRefresh = clock(),
-                errorMessage = null,
-                feedbackMessage = null,
-                isBusy = false,
-            )
-            StateNotification(newState, publishLocked(newState))
-        }
-        if (notification != null) {
-            BridgeLog.textFetched(version = text.version, length = text.text.length)
-            notifyListeners(notification)
-        }
-    }
-
-    private fun finishProbeFailure(error: com.ericdevwang.androidinputbridge.plugin.http.ProbeError) {
-        if (error.category == ProbeFailureCategory.CONNECTION) {
-            finish(
-                state.copy(
-                    connectionState = BridgeConnectionState.SERVER_OFFLINE,
-                    serverStatus = "Offline",
-                    errorMessage = error.message,
-                    feedbackMessage = null,
-                ),
-            )
-        } else {
-            finishError(error.message)
-        }
-    }
-
-    private fun finishProbeFailureMessage(message: String) {
-        finish(
-            state.copy(
-                connectionState = BridgeConnectionState.SERVER_OFFLINE,
-                serverStatus = "Offline",
-                errorMessage = message,
-                feedbackMessage = null,
-            ),
-        )
-    }
-
     private fun finishError(message: String) {
-        finish(
-            state.copy(
-                connectionState = BridgeConnectionState.ERROR,
-                errorMessage = message,
-                feedbackMessage = null,
-            ),
-        )
+        finish(state.copy(connectionState = BridgeConnectionState.ERROR, errorMessage = message, feedbackMessage = null))
     }
 
     private fun finish(newState: BridgeState) {
-        var pollingToCancel: PollingHandle? = null
         val notification = synchronized(lock) {
             if (disposed) return
             busy = false
-            if (newState.connectionState != BridgeConnectionState.CONNECTED) {
-                pollingToCancel = pollingHandle
-                pollingHandle = null
-            }
             val finishedState = newState.copy(isBusy = false)
             StateNotification(finishedState, publishLocked(finishedState))
         }
-        pollingToCancel?.cancel()
         notifyListeners(notification)
     }
 
-    private fun startPolling() {
-        val newPollingHandle = runCatching {
-            pollingScheduler.scheduleWithFixedDelay(
-                initialDelayMillis = BridgeNetworkConfig.HTTP_POLL_INTERVAL_MILLIS,
-                delayMillis = BridgeNetworkConfig.HTTP_POLL_INTERVAL_MILLIS,
-                task = ::runPollingTick,
-            )
-        }.getOrElse {
-            finishError("HTTP polling could not be scheduled.")
-            return
-        }
+    private fun detachWebSocket(client: BridgeWebSocketClient): Boolean = synchronized(lock) {
+        if (activeWebSocketClient !== client) return@synchronized false
+        activeWebSocketClient = null
+        true
+    }
 
-        var handleToCancel: PollingHandle? = null
-        val keepNewHandle = synchronized(lock) {
-            if (disposed || state.connectionState != BridgeConnectionState.CONNECTED) {
-                false
-            } else {
-                handleToCancel = pollingHandle
-                pollingHandle = newPollingHandle
-                true
-            }
+    private fun closeActiveWebSocket() {
+        val client = synchronized(lock) {
+            val current = activeWebSocketClient
+            activeWebSocketClient = null
+            current
         }
-        if (keepNewHandle) {
-            handleToCancel?.cancel()
-        } else {
-            newPollingHandle.cancel()
-        }
+        client?.let(::closeWebSocketAsync)
     }
 
     private fun publish(newState: BridgeState) {
@@ -595,16 +460,16 @@ class BridgeConnectionCoordinator(
         }
     }
 
-    private fun closeProbeAsync(probe: HttpProbeClient) {
+    private fun closeWebSocketAsync(client: BridgeWebSocketClient) {
         val closeTask = Runnable {
-            runCatching { probe.close() }
-                .onFailure { BridgeLog.failure("HTTP client close", it) }
+            runCatching { client.close() }
+                .onFailure { BridgeLog.failure("WebSocket client close", it) }
         }
         try {
             executor.execute(closeTask)
         } catch (exception: RuntimeException) {
-            BridgeLog.failure("HTTP client close scheduling", exception)
-            Thread(closeTask, "android-input-bridge-http-close").apply {
+            BridgeLog.failure("WebSocket client close scheduling", exception)
+            Thread(closeTask, "android-input-bridge-websocket-close").apply {
                 isDaemon = true
                 start()
             }
@@ -618,6 +483,5 @@ class BridgeConnectionCoordinator(
             "Text was copied, but the phone content changed and was not cleared."
         const val COPIED_MESSAGE = "Copied"
         const val COPIED_AND_CLEARED_MESSAGE = "Copied and cleared"
-        const val VERSION_CONFLICT_STATUS = 409
     }
 }
