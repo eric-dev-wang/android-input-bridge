@@ -47,6 +47,20 @@ class AdbDeviceNameResolverTest {
     }
 
     @Test
+    fun displayNameTrimsEachCandidateBeforeSelectingAndFormatting() {
+        val device = AdbDevice(serial = "serial", model = "  Pixel 8  ", marketingName = " \t")
+
+        assertEquals("Pixel 8 (serial)", device.displayName)
+    }
+
+    @Test
+    fun displayNameTrimsMarketingNameBeforeFormatting() {
+        val device = AdbDevice(serial = "serial", model = "Pixel 8", marketingName = "  HUAWEI P40 Pro  ")
+
+        assertEquals("HUAWEI P40 Pro (serial)", device.displayName)
+    }
+
+    @Test
     fun displayNameFallsBackToSerialWhenModelAndMarketingNameAreBlank() {
         val device = AdbDevice(serial = "serial", model = "  ", marketingName = "\t")
 

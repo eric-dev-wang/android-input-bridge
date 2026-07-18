@@ -6,8 +6,9 @@ data class AdbDevice(
     val marketingName: String? = null,
 ) {
     val displayName: String
-        get() = (marketingName ?: model)
-            ?.takeIf { it.isNotBlank() }
+        get() = sequenceOf(marketingName, model)
+            .mapNotNull { it?.trim()?.takeIf { value -> value.isNotEmpty() } }
+            .firstOrNull()
             ?.let { "$it ($serial)" }
             ?: serial
 }
