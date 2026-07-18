@@ -88,7 +88,7 @@ android-studio-plugin/
 - Windows 独立客户端、云服务、账户系统或局域网同步。
 - Android → Windows 之外的数据方向。
 - 后台自动重连；连接恢复由用户点击 Reconnect 触发，并最多重建一次 ADB forward。
-- Android App UI 重设计、可配置端口和设置持久化。
+- 可配置端口和设置持久化。
 
 ## 5. 总体架构
 
@@ -224,7 +224,7 @@ Tool Window 至少显示：
 - 必须先确认 Clipboard 写入成功，再发送 Clear。
 - Clipboard 失败时不得清空。
 - 版本冲突时保留已复制内容，刷新当前快照并显示明确提示。
-- Reconnect 重新处理 ADB、forward 和 WebSocket；不使用自动重连。
+- Reconnect 由用户触发，重新处理 ADB、forward 和 WebSocket；不执行后台自动重连。
 
 ## 9. ADB 和线程模型
 

@@ -109,5 +109,6 @@ Tag 只是发布工作流的触发器，工作流不会强制比较 Tag 和 `bri
 - [完整需求说明](docs/requirements.md)
 - [WebSocket 协议](docs/websocket-protocol.md)
 - [Git 提交规范](docs/git-commit-convention.md)
+- [Changelog](CHANGELOG.md)
 
 实现工作使用 `.worktrees/` 下的隔离 worktree。提交前运行对应模块测试、构建和必要的 Plugin verifier。

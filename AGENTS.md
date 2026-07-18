@@ -17,8 +17,9 @@ This repository uses one root Gradle project with two product modules and one sh
 - `docs/`: requirements, commit conventions, and implementation notes.
 - `.github/workflows/`: pull request/main CI and push-tag release workflow using `bridgeVersion` for artifacts.
 - `.worktrees/`: local isolated Git worktrees used for feature implementation; its contents are not committed.
+- `CHANGELOG.md`: release history; entries describe the behavior of the corresponding version.
 
-Keep the Android App and plugin independently buildable within the same root Gradle project. Keep `protocol/` limited to versioned wire models and serialization contracts. Use `docs/requirements.md` as the functional source of truth.
+Keep the Android App and plugin independently buildable within the same root Gradle project. Keep `protocol/` limited to versioned wire models and serialization contracts. Use `docs/requirements.md` for product constraints and acceptance scope.
 
 ## Documentation Authority
 
