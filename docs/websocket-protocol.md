@@ -19,6 +19,10 @@ ws://127.0.0.1:18080/api/v1/ws
 The Android server listens only on `127.0.0.1:18080`. It does not expose a LAN
 endpoint and does not accept computer-to-phone text updates.
 
+The `appVersion` in `hello_ack` is read from the Android package at runtime. Any
+version shown in an example is illustrative; release builds use the
+`bridgeVersion` value from the root `gradle.properties`.
+
 Wire models are defined in the root `:protocol` Kotlin/JVM module and are
 serialized with Kotlin serialization. Messages are UTF-8 JSON text frames.
 Binary frames are rejected.
@@ -64,7 +68,7 @@ The server responds with `hello_ack`:
 {
   "type": "hello_ack",
   "status": "ok",
-  "appVersion": "1.0.1",
+  "appVersion": "<bridgeVersion>",
   "protocolVersion": 2,
   "serverTime": 1783780000000,
   "requestId": "hello-1"
@@ -207,7 +211,9 @@ The plugin displays the connection failure and leaves recovery to Reconnect.
 
 The server is owned by the Android Foreground Service. Starting the service
 starts the server; stopping the service closes active sessions. The plugin runs
-ADB and socket operations off the IntelliJ EDT with bounded timeouts.
+ADB and socket operations off the IntelliJ EDT with bounded timeouts. There is
+no background auto-reconnect; an explicit Reconnect action may rebuild the ADB
+forward once before retrying the WebSocket connection.
 
 Automated tests cover handshake, snapshots, pushed changes, clear success and
 conflicts, malformed messages, frame limits, session fan-out, client request

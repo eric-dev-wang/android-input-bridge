@@ -1,5 +1,12 @@
 # Repository Guidelines
 
+## Current Repository Snapshot
+
+- Release baseline: `1.1.1` from `gradle.properties`; wire protocol version: `2`.
+- Runtime flow: `app` owns `MainActivity`/`MainScreen`, `TextRepository`, and the foreground `InputBridgeService`/`InputWebSocketServer`; `android-studio-plugin` owns `InputBridgeToolWindowFactory`, `InputBridgePanel`, `BridgeConnectionCoordinator`, ADB, and the WebSocket client.
+- `protocol` owns `ProtocolModels.kt`, `ProtocolConstants.kt`, and serialization configuration shared by both products.
+- The default plugin target is IntelliJ IDEA `2026.1.1` with Android plugin `261.23567.138`; use Java 21 and the checked-in Gradle wrapper.
+
 ## Project Structure & Module Organization
 
 This repository uses one root Gradle project with two product modules and one shared module:
@@ -10,8 +17,21 @@ This repository uses one root Gradle project with two product modules and one sh
 - `docs/`: requirements, commit conventions, and implementation notes.
 - `.github/workflows/`: pull request/main CI and push-tag release workflow using `bridgeVersion` for artifacts.
 - `.worktrees/`: local isolated Git worktrees used for feature implementation; its contents are not committed.
+- `CHANGELOG.md`: release history; entries describe the behavior of the corresponding version.
 
-Keep the Android App and plugin independently buildable within the same root Gradle project. Keep `protocol/` limited to versioned wire models and serialization contracts. Use `docs/requirements.md` as the functional source of truth.
+Keep the Android App and plugin independently buildable within the same root Gradle project. Keep `protocol/` limited to versioned wire models and serialization contracts. Use `docs/requirements.md` for product constraints and acceptance scope.
+
+## Documentation Authority
+
+Use the documents in this order when information differs:
+
+1. Source code and tests: actual implementation behavior.
+2. `docs/websocket-protocol.md`: cross-module wire compatibility.
+3. `docs/requirements.md`: product constraints and acceptance scope.
+4. `README.md`: onboarding and user-facing overview.
+5. `AGENTS.md`: contribution workflow and AI-specific guardrails.
+
+Planning history is not an automatic task queue; derive current work from the requested change, open issues, and the current codebase.
 
 ## Worktree Workflow
 
@@ -39,7 +59,7 @@ Run commands from the repository root:
 
 Use `adb forward tcp:18080 tcp:18080` for manual end-to-end checks. WebSocket and ADB operations must run off the IntelliJ EDT and use bounded timeouts.
 
-Plugin tasks default to IntelliJ IDEA 2026.1.1 with Android plugin `261.23567.138`. Use `-PandroidStudioPath` only when validating against a local Android Studio installation.
+Plugin tasks default to IntelliJ IDEA 2026.1.1 with Android plugin `261.23567.138`.
 
 ## Coding Style & Naming Conventions
 
@@ -49,7 +69,7 @@ Use Kotlin official style with four-space indentation. Use `PascalCase` for clas
 
 Test version changes, persistence, UTF-8/multiline text, WebSocket messages, handshake failures, ADB parsing, version conflicts, clipboard failure handling, and Copy-before-Clear ordering. Name tests after observable behavior, such as `clearWithStaleVersionReturnsConflict`. Add or update tests with every behavior change; no global coverage threshold is defined yet.
 
-Before a PR, run the full matrix: Android lint and unit tests, Protocol tests, Plugin tests, `buildPlugin`, and `verifyPlugin`. Use a local `androidStudioPath` when the default IDE artifact is unavailable.
+Before a PR, run the full matrix: Android lint and unit tests, Protocol tests, Plugin tests, `buildPlugin`, and `verifyPlugin`.
 
 ## Commit & Pull Request Guidelines
 
