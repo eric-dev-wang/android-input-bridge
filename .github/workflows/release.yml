@@ -70,11 +70,11 @@ jobs:
         run: |
           ./gradlew :app:assembleDebug :android-studio-plugin:buildPlugin
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/android-input-bridge-v$VERSION-debug.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/input-bridge-v$VERSION-debug.apk"
 
           plugin_zip="$(find android-studio-plugin/build/distributions -maxdepth 1 -type f -name '*.zip' -print -quit)"
           test -n "$plugin_zip"
-          cp "$plugin_zip" "dist/android-input-bridge-plugin-v$VERSION.zip"
+          cp "$plugin_zip" "dist/input-bridge-plugin-v$VERSION.zip"
 
           ls -lh dist
 
@@ -85,8 +85,8 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
         run: >-
           gh release create "$TAG_NAME"
-          dist/android-input-bridge-v$VERSION-debug.apk
-          dist/android-input-bridge-plugin-v$VERSION.zip
-          --title "Android Input Bridge $VERSION"
+          dist/input-bridge-v$VERSION-debug.apk
+          dist/input-bridge-plugin-v$VERSION.zip
+          --title "Input Bridge $VERSION"
           --generate-notes
           --verify-tag

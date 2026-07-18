@@ -7,18 +7,18 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:name=".AndroidInputBridgeApplication"
+        android:name=".InputBridgeApplication"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AndroidInputBridge">
+        android:theme="@style/Theme.InputBridge">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.AndroidInputBridge.Starting">
+            android:theme="@style/Theme.InputBridge.Starting">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -169,7 +169,7 @@ docs(commits): add the repository commit convention
 feat(app): add the multiline text editor
 feat(server): start the local WebSocket server on app launch
 feat(protocol): add version-aware text clearing
-feat(plugin): register the Android Input Bridge tool window
+feat(plugin): register the Input Bridge tool window
 feat(adb): detect the configured adb executable
 feat(socket): retry a failed connection after rebuilding forward
 feat(clipboard): write the displayed text to the system clipboard

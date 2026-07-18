@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.AndroidInputBridge" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.InputBridge" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/app_background</item>
     </style>
 
-    <style name="Theme.AndroidInputBridge.Starting" parent="Theme.SplashScreen">
+    <style name="Theme.InputBridge.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/app_background</item>
         <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <item name="postSplashScreenTheme">@style/Theme.AndroidInputBridge</item>
+        <item name="postSplashScreenTheme">@style/Theme.InputBridge</item>
     </style>
 </resources>

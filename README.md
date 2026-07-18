@@ -1,6 +1,6 @@
-# Android Input Bridge
+# Input Bridge
 
-Android Input Bridge 是一个通过 USB ADB 将 Android 手机上的临时文本推送到 Android Studio / IntelliJ IDEA 插件的本地文本桥接工具。
+Input Bridge 是一个通过 USB ADB 将 Android 手机上的临时文本推送到 Android Studio / IntelliJ IDEA 插件的本地文本桥接工具。
 
 Android App 负责输入和保存当前文本；IntelliJ Platform Plugin 负责接收实时更新、展示文本并写入系统剪贴板。用户最后在目标程序中手动粘贴。
 
@@ -86,7 +86,7 @@ Tag 只是发布工作流的触发器，工作流不会强制比较 Tag 和 `bri
    adb forward tcp:18080 tcp:18080
    ```
 
-4. 在 Android Studio 中打开 `View → Tool Windows → Android Input Bridge`。
+4. 在 Android Studio 中打开 `View → Tool Windows → Input Bridge`。
 5. 点击 Reconnect 建立 ADB forward 和 WebSocket 连接。
 6. 在手机输入文本，Plugin 会通过 WebSocket 实时更新。
 

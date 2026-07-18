@@ -1,10 +1,10 @@
-# Android Input Bridge 需求说明
+# Input Bridge 需求说明
 
 > 文档状态：当前实现基线为 `1.1.1`，WebSocket 协议迁移已经完成。本文件描述产品约束、边界和验收范围；具体运行行为以源码和测试为准，WebSocket 协议定义以 [`docs/websocket-protocol.md`](websocket-protocol.md) 为准。
 
 ## 1. 产品定义
 
-Android Input Bridge 是一个通过 USB ADB 将 Android 手机上的临时文本推送到 Android Studio 插件，并在 Tool Window 中展示和复制的本地文本桥接工具。
+Input Bridge 是一个通过 USB ADB 将 Android 手机上的临时文本推送到 Android Studio 插件，并在 Tool Window 中展示和复制的本地文本桥接工具。
 
 Android 是文本输入端；Android Studio 插件是文本查看和复制端。用户通过正常的系统复制粘贴操作，将文本手动粘贴到目标位置。
 
@@ -40,7 +40,7 @@ Tool Window 实时展示文本
 
 1. 在 Android 手机上打开 App。
 2. 使用任意输入法输入中文、英文、Emoji、多行文本或代码。
-3. 在 Android Studio 中打开 Android Input Bridge Tool Window。
+3. 在 Android Studio 中打开 Input Bridge Tool Window。
 4. 看到手机端文本的初始快照和后续实时更新。
 5. 点击 Copy，将当前显示文本写入系统剪贴板。
 6. 点击 Copy & Clear，在复制成功且版本未冲突时清空手机文本。

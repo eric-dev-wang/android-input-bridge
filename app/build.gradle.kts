@@ -5,10 +5,10 @@ plugins {
 }
 
 android {
-    namespace = "com.ericdevwang.androidinputbridge"
+    namespace = "com.ericdevwang.inputbridge"
     compileSdk = 37
     defaultConfig {
-        applicationId = "com.ericdevwang.androidinputbridge"
+        applicationId = "com.ericdevwang.inputbridge"
         minSdk = 31
         targetSdk = 37
         versionCode = rootProject.extra["bridgeVersionCode"] as Int

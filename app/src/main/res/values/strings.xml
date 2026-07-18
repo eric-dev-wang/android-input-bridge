@@ -1,11 +1,11 @@
 <resources>
-    <string name="app_name">Android Input Bridge</string>
-    <string name="input_bridge_title">Android Input Bridge</string>
+    <string name="app_name">Input Bridge</string>
+    <string name="input_bridge_title">Input Bridge</string>
     <string name="characters_count">Characters: %1$d</string>
     <string name="version_format">Version: %1$d</string>
     <string name="clear">Clear</string>
     <string name="server_notification_channel_name">Input bridge server</string>
-    <string name="server_notification_title">Android Input Bridge</string>
+    <string name="server_notification_title">Input Bridge</string>
     <string name="server_notification_text">Local WebSocket server is running</string>
     <string name="persistence_error">Text could not be saved.</string>
     <string name="initialization_error">Saved text could not be loaded.</string>

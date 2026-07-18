@@ -1,4 +1,4 @@
-# Android Input Bridge WebSocket Protocol
+# Input Bridge WebSocket Protocol
 
 ## Overview
 

@@ -68,7 +68,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Consolidated the Android App, protocol module, and Android Studio plugin into one Gradle project.
 - Restricted the Android HTTP server to `127.0.0.1:18080` and communication to the ADB-forwarded local channel.
 
-[1.1.1]: https://github.com/eric-dev-wang/android-input-bridge/compare/v1.1.0...v1.1.1
-[1.1.0]: https://github.com/eric-dev-wang/android-input-bridge/compare/v1.0.1...v1.1.0
-[1.0.1]: https://github.com/eric-dev-wang/android-input-bridge/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/eric-dev-wang/android-input-bridge/releases/tag/v1.0.0
+[1.1.1]: https://github.com/eric-dev-wang/input-bridge/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/eric-dev-wang/input-bridge/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/eric-dev-wang/input-bridge/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/eric-dev-wang/input-bridge/releases/tag/v1.0.0
