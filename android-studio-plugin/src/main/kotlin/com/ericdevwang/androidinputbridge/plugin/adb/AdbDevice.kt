@@ -3,7 +3,12 @@ package com.ericdevwang.androidinputbridge.plugin.adb
 data class AdbDevice(
     val serial: String,
     val model: String?,
+    val marketingName: String? = null,
 ) {
     val displayName: String
-        get() = model?.takeIf { it.isNotBlank() }?.let { "$it ($serial)" } ?: serial
+        get() = sequenceOf(marketingName, model)
+            .mapNotNull { it?.trim()?.takeIf { value -> value.isNotEmpty() } }
+            .firstOrNull()
+            ?.let { "$it ($serial)" }
+            ?: serial
 }
