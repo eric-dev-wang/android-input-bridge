@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+While the project remains in the v1.x preview phase, releases may introduce
+breaking changes without preserving upgrade compatibility.
+
+## [1.1.2] - 2026-07-18
+
+### Changed
+
+- Renamed the product branding and package identifiers to Input Bridge.
+- Changed the Android application ID, IntelliJ plugin ID, and DataStore file name. Users of earlier v1.x preview artifacts must uninstall and reinstall the App and plugin; existing persisted text is not migrated.
 
 ## [1.1.1] - 2026-07-17
 
@@ -68,6 +77,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Consolidated the Android App, protocol module, and Android Studio plugin into one Gradle project.
 - Restricted the Android HTTP server to `127.0.0.1:18080` and communication to the ADB-forwarded local channel.
 
+[1.1.2]: https://github.com/eric-dev-wang/input-bridge/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/eric-dev-wang/input-bridge/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/eric-dev-wang/input-bridge/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/eric-dev-wang/input-bridge/compare/v1.0.0...v1.0.1

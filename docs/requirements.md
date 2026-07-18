@@ -1,6 +1,6 @@
 # Input Bridge 需求说明
 
-> 文档状态：当前实现基线为 `1.1.1`，WebSocket 协议迁移已经完成。本文件描述产品约束、边界和验收范围；具体运行行为以源码和测试为准，WebSocket 协议定义以 [`docs/websocket-protocol.md`](websocket-protocol.md) 为准。
+> 文档状态：WebSocket 协议迁移已经完成。本文件描述产品约束、边界和验收范围；具体运行行为以源码和测试为准，WebSocket 协议定义以 [`docs/websocket-protocol.md`](websocket-protocol.md) 为准。
 
 ## 1. 产品定义
 

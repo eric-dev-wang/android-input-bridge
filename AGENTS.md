@@ -2,7 +2,7 @@
 
 ## Current Repository Snapshot
 
-- Release baseline: `1.1.1` from `gradle.properties`; wire protocol version: `2`.
+- Wire protocol version: `2`.
 - Runtime flow: `app` owns `MainActivity`/`MainScreen`, `TextRepository`, and the foreground `InputBridgeService`/`InputWebSocketServer`; `android-studio-plugin` owns `InputBridgeToolWindowFactory`, `InputBridgePanel`, `BridgeConnectionCoordinator`, ADB, and the WebSocket client.
 - `protocol` owns `ProtocolModels.kt`, `ProtocolConstants.kt`, and serialization configuration shared by both products.
 - The default plugin target is IntelliJ IDEA `2026.1.1` with Android plugin `261.23567.138`; use Java 21 and the checked-in Gradle wrapper.
