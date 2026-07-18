@@ -30,7 +30,7 @@ Use the documents in this order when information differs:
 4. `README.md`: onboarding and user-facing overview.
 5. `AGENTS.md`: contribution workflow and AI-specific guardrails.
 
-The phase list in `docs/requirements.md` is historical scope context, not an automatic task queue.
+Planning history is not an automatic task queue; derive current work from the requested change, open issues, and the current codebase.
 
 ## Worktree Workflow
 

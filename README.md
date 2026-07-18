@@ -103,13 +103,17 @@ Tag 只是发布工作流的触发器，工作流不会强制比较 Tag 和 `bri
 
 ## 功能边界
 
-第一阶段只实现 Android → Plugin 的文本桥接、展示和复制：
+当前实现只包含 Android → Plugin 的文本桥接、展示和复制：
 
 - 不自动向其他程序输入文本。
 - 不模拟键盘、粘贴、Enter 或全局快捷键。
 - 不读取系统剪贴板、IDE 编辑器或电脑文件。
 - 不执行后台自动重连；用户点击 Reconnect 时会重建 ADB forward 一次并重试 WebSocket。
 - 不使用云服务或局域网通信。
+
+## Future Possibilities
+
+- An Android-side button could explicitly ask the Plugin to fill the current text at the user's active cursor position. This is not implemented and requires a separate interaction and safety design.
 
 ## 开发文档
 
