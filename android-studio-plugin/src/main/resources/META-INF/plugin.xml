@@ -1,22 +1,22 @@
 <idea-plugin>
-    <id>com.ericdevwang.androidinputbridge.plugin</id>
-    <name>Android Input Bridge</name>
-    <vendor>Android Input Bridge</vendor>
+    <id>com.ericdevwang.inputbridge.plugin</id>
+    <name>Input Bridge</name>
+    <vendor>Input Bridge</vendor>
 
     <description><![CDATA[
-        Displays temporary text from Android Input Bridge in an IntelliJ Platform tool window.
+        Displays temporary text from Input Bridge in an IntelliJ Platform tool window.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.android</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup id="Android Input Bridge" displayType="BALLOON" />
-        <projectService serviceImplementation="com.ericdevwang.androidinputbridge.plugin.service.InputBridgeProjectService"/>
+        <notificationGroup id="Input Bridge" displayType="BALLOON" />
+        <projectService serviceImplementation="com.ericdevwang.inputbridge.plugin.service.InputBridgeProjectService"/>
         <toolWindow
-                id="Android Input Bridge"
+                id="Input Bridge"
                 anchor="right"
-                icon="/icons/androidInputBridge.svg"
-                factoryClass="com.ericdevwang.androidinputbridge.plugin.toolwindow.InputBridgeToolWindowFactory"/>
+                icon="/icons/inputBridge.svg"
+                factoryClass="com.ericdevwang.inputbridge.plugin.toolwindow.InputBridgeToolWindowFactory"/>
     </extensions>
 </idea-plugin>

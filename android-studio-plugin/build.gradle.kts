@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.intellij.platform")
 }
 
-group = "com.ericdevwang.androidinputbridge.plugin"
+group = "com.ericdevwang.inputbridge.plugin"
 version = rootProject.version
 
 kotlin {
