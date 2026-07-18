@@ -103,6 +103,7 @@ Tag 只是发布工作流的触发器，工作流不会强制比较 Tag 和 `bri
 ## Future Possibilities
 
 - An Android-side button could explicitly ask the Plugin to fill the current text at the user's active cursor position. This is not implemented and requires a separate interaction and safety design.
+- Wi-Fi ADB could be supported as an alternative transport. This would require allowing the Android App to access the local network and evaluating the Wi-Fi and local-network permissions required by Android 17; the current implementation remains USB ADB with loopback-only server access.
 
 ## 开发文档
 
