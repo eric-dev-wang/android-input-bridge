@@ -1,6 +1,6 @@
 # Android Input Bridge 需求说明
 
-> 文档状态：当前实现基线为 `1.1.1`，WebSocket 协议迁移已经完成。本文件描述产品约束、边界和验收范围；具体运行行为以源码和测试为准，线协议以 [`docs/websocket-protocol.md`](websocket-protocol.md) 为准。
+> 文档状态：当前实现基线为 `1.1.1`，WebSocket 协议迁移已经完成。本文件描述产品约束、边界和验收范围；具体运行行为以源码和测试为准，WebSocket 协议定义以 [`docs/websocket-protocol.md`](websocket-protocol.md) 为准。
 
 ## 1. 产品定义
 
@@ -282,8 +282,7 @@ Fetched text successfully: version=17, length=123
 ```bash
 ./gradlew :app:lintDebug :app:testDebugUnitTest :protocol:test
 ./gradlew :android-studio-plugin:test :android-studio-plugin:buildPlugin \
-  :android-studio-plugin:verifyPlugin \
-  -PandroidStudioPath="$HOME/Applications/Android Studio.app"
+  :android-studio-plugin:verifyPlugin
 ```
 
 GitHub Actions 在 Pull Request 和推送到 `main` 时运行完整验证矩阵，包括 Android lint、Android 单元测试、协议测试、Plugin 测试、Plugin 构建和 Plugin verifier。

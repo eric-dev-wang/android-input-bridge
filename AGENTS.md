@@ -58,7 +58,7 @@ Run commands from the repository root:
 
 Use `adb forward tcp:18080 tcp:18080` for manual end-to-end checks. WebSocket and ADB operations must run off the IntelliJ EDT and use bounded timeouts.
 
-Plugin tasks default to IntelliJ IDEA 2026.1.1 with Android plugin `261.23567.138`. Use `-PandroidStudioPath` only when validating against a local Android Studio installation.
+Plugin tasks default to IntelliJ IDEA 2026.1.1 with Android plugin `261.23567.138`.
 
 ## Coding Style & Naming Conventions
 
@@ -68,7 +68,7 @@ Use Kotlin official style with four-space indentation. Use `PascalCase` for clas
 
 Test version changes, persistence, UTF-8/multiline text, WebSocket messages, handshake failures, ADB parsing, version conflicts, clipboard failure handling, and Copy-before-Clear ordering. Name tests after observable behavior, such as `clearWithStaleVersionReturnsConflict`. Add or update tests with every behavior change; no global coverage threshold is defined yet.
 
-Before a PR, run the full matrix: Android lint and unit tests, Protocol tests, Plugin tests, `buildPlugin`, and `verifyPlugin`. Use a local `androidStudioPath` when the default IDE artifact is unavailable.
+Before a PR, run the full matrix: Android lint and unit tests, Protocol tests, Plugin tests, `buildPlugin`, and `verifyPlugin`.
 
 ## Commit & Pull Request Guidelines
 
