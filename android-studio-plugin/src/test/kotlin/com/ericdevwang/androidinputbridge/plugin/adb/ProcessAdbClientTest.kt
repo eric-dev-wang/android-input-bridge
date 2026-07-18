@@ -30,12 +30,32 @@ class ProcessAdbClientTest {
                 stderr = "",
                 timedOut = false,
             ),
+            AdbCommandResult(
+                exitCode = 0,
+                stdout = "\n",
+                stderr = "",
+                timedOut = false,
+            ),
+            AdbCommandResult(
+                exitCode = 0,
+                stdout = "\n",
+                stderr = "",
+                timedOut = false,
+            ),
         )
         val client = ProcessAdbClient(Path.of("/sdk/platform-tools/adb"), runner)
 
         val result = client.devices()
 
-        assertEquals(listOf("devices", "-l"), runner.arguments)
+        assertEquals(listOf("devices", "-l"), runner.arguments.first())
+        assertEquals(
+            listOf("-s", "serial", "shell", "getprop", "ro.config.marketing_name"),
+            runner.arguments[1],
+        )
+        assertEquals(
+            listOf("-s", "serial", "shell", "getprop", "ro.product.marketname"),
+            runner.arguments[2],
+        )
         assertEquals(listOf(AdbDevice("serial", "Pixel 8")), (result as AdbResult.Success).value)
     }
 
@@ -96,17 +116,18 @@ class ProcessAdbClientTest {
             ),
             (result as AdbResult.Success).value,
         )
-        assertEquals(listOf("forward", "--list"), runner.arguments)
+        assertEquals(listOf("forward", "--list"), runner.arguments.last())
     }
 
     private class RecordingCommandRunner(
-        private val result: AdbCommandResult,
+        vararg results: AdbCommandResult,
     ) : AdbCommandRunner {
-        var arguments: List<String> = emptyList()
+        private val results = ArrayDeque(results.toList())
+        var arguments: List<List<String>> = emptyList()
 
         override fun run(arguments: List<String>): AdbCommandResult {
-            this.arguments = arguments
-            return result
+            this.arguments += listOf(arguments)
+            return if (results.size > 1) results.removeFirst() else results.first()
         }
     }
 }

@@ -24,8 +24,12 @@ class ProcessAdbClient(
     private val adbPath: Path,
     private val commandRunner: AdbCommandRunner = ProcessAdbCommandRunner(adbPath),
 ) : AdbClient {
+    private val deviceNameResolver = AdbDeviceNameResolver(commandRunner)
+
     override fun devices(): AdbResult<List<AdbDevice>> =
-        runCommand(listOf("devices", "-l")) { AdbDevicesParser.parse(it.stdout) }
+        runCommand(listOf("devices", "-l")) {
+            AdbDevicesParser.parse(it.stdout).map(deviceNameResolver::resolve)
+        }
 
     override fun listForwards(): AdbResult<List<PortForward>> =
         runCommand(listOf("forward", "--list")) { parseForwards(it.stdout) }
