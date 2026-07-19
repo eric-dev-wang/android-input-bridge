@@ -39,3 +39,6 @@ rootProject.name = "Input Bridge"
 include(":app")
 include(":protocol")
 include(":android-studio-plugin")
+include(":core:datastore")
+include(":core:designsystem")
+include(":core:data")

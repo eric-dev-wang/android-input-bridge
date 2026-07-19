@@ -8,7 +8,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.datastore.preferences.core.edit
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ericdevwang.inputbridge.MainActivity
-import com.ericdevwang.inputbridge.storage.inputBridgeDataStore
+import com.ericdevwang.inputbridge.core.datastore.inputBridgeDataStore
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule

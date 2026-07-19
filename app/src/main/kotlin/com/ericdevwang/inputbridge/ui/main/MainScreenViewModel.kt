@@ -4,11 +4,11 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ericdevwang.inputbridge.model.TextChangeResult
-import com.ericdevwang.inputbridge.model.TextState
-import com.ericdevwang.inputbridge.repository.ClearResult
-import com.ericdevwang.inputbridge.repository.PersistenceResult
-import com.ericdevwang.inputbridge.repository.TextRepository
+import com.ericdevwang.inputbridge.core.data.model.TextChangeResult
+import com.ericdevwang.inputbridge.core.data.model.TextState
+import com.ericdevwang.inputbridge.core.data.repository.ClearResult
+import com.ericdevwang.inputbridge.core.data.repository.PersistenceResult
+import com.ericdevwang.inputbridge.core.data.repository.TextRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

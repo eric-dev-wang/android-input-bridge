@@ -44,6 +44,9 @@ kotlin {
 }
 
 dependencies {
+  implementation(project(":core:datastore"))
+  implementation(project(":core:designsystem"))
+  implementation(project(":core:data"))
   implementation(project(":protocol"))
 
   val composeBom = platform(libs.androidx.compose.bom)
@@ -60,7 +63,6 @@ dependencies {
   // Arch Components
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
-  implementation(libs.androidx.datastore.preferences)
   implementation(libs.koin.android)
   implementation(libs.koin.androidx.compose)
 
@@ -86,6 +88,7 @@ dependencies {
   testImplementation(libs.ktor.client.websockets)
 
   // Instrumented tests: jUnit rules and runners
+  androidTestImplementation(libs.androidx.datastore.preferences)
   androidTestImplementation(libs.androidx.test.core)
   androidTestImplementation(libs.androidx.test.ext.junit)
   androidTestImplementation(libs.androidx.test.runner)

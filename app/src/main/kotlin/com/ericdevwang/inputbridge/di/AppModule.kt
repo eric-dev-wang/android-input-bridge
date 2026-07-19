@@ -3,15 +3,9 @@ package com.ericdevwang.inputbridge.di
 import android.app.Application
 import android.content.pm.PackageManager
 import android.os.Build
-import com.ericdevwang.inputbridge.repository.DataStoreTextDataSource
-import com.ericdevwang.inputbridge.repository.DefaultTextRepository
-import com.ericdevwang.inputbridge.repository.TextDataSource
-import com.ericdevwang.inputbridge.repository.TextRepository
+import com.ericdevwang.inputbridge.core.data.repository.TextRepository
 import com.ericdevwang.inputbridge.server.InputWebSocketServer
 import com.ericdevwang.inputbridge.ui.main.MainScreenViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
@@ -20,9 +14,6 @@ import org.koin.dsl.module
 private const val APP_VERSION_QUALIFIER = "appVersion"
 
 val appModule = module {
-    single<CoroutineScope> { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
-    single<TextDataSource> { DataStoreTextDataSource(androidContext()) }
-    single<TextRepository> { DefaultTextRepository(dataSource = get(), scope = get()) }
     single<String>(named(APP_VERSION_QUALIFIER)) {
         (androidContext() as Application).readVersionName()
     }

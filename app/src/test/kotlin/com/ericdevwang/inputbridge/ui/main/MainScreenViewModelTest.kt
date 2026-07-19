@@ -2,11 +2,11 @@ package com.ericdevwang.inputbridge.ui.main
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import com.ericdevwang.inputbridge.model.MAX_TEXT_CODE_POINTS
-import com.ericdevwang.inputbridge.model.TextState
-import com.ericdevwang.inputbridge.repository.ClearResult
-import com.ericdevwang.inputbridge.repository.PersistenceResult
-import com.ericdevwang.inputbridge.repository.TextRepository
+import com.ericdevwang.inputbridge.core.data.model.MAX_TEXT_CODE_POINTS
+import com.ericdevwang.inputbridge.core.data.model.TextState
+import com.ericdevwang.inputbridge.core.data.repository.ClearResult
+import com.ericdevwang.inputbridge.core.data.repository.PersistenceResult
+import com.ericdevwang.inputbridge.core.data.repository.TextRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
