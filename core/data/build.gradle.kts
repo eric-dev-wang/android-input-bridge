@@ -1,31 +1,16 @@
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.inputbridge.android.library)
+    alias(libs.plugins.inputbridge.koin)
 }
 
 android {
     namespace = "com.ericdevwang.inputbridge.core.data"
-    compileSdk = 37
-
-    defaultConfig {
-        minSdk = 31
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-}
-
-kotlin {
-    jvmToolchain(17)
 }
 
 dependencies {
     implementation(project(":core:datastore"))
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.core)
-    implementation(platform(libs.koin.bom))
-    implementation(libs.koin.android)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
