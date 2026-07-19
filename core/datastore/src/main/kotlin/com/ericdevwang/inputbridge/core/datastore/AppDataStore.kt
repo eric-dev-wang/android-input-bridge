@@ -5,8 +5,8 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 
-val Context.inputBridgeDataStore by preferencesDataStore(name = "input_bridge")
+internal val Context.inputBridgeDataStore by preferencesDataStore(name = "input_bridge")
 
-val TEXT_KEY = stringPreferencesKey("text")
-val VERSION_KEY = longPreferencesKey("version")
-val UPDATED_AT_KEY = longPreferencesKey("updated_at")
+internal val TEXT_KEY = stringPreferencesKey("text")
+internal val VERSION_KEY = longPreferencesKey("version")
+internal val UPDATED_AT_KEY = longPreferencesKey("updated_at")

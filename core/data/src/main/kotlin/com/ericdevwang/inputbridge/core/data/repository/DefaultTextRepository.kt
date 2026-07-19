@@ -1,6 +1,8 @@
 package com.ericdevwang.inputbridge.core.data.repository
 
 import com.ericdevwang.inputbridge.core.data.model.TextState
+import com.ericdevwang.inputbridge.core.datastore.PersistedTextState
+import com.ericdevwang.inputbridge.core.datastore.TextDataSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -125,7 +127,7 @@ class DefaultTextRepository(
 
     private suspend fun processSave(request: SaveRequest) {
         val result = try {
-            if (dataSource.saveIfNewer(request.state)) {
+            if (dataSource.saveIfNewer(request.state.toPersistedTextState())) {
                 PersistenceResult.Succeeded(request.state.version)
             } else {
                 PersistenceResult.Superseded(request.state.version)
@@ -145,7 +147,7 @@ class DefaultTextRepository(
             requestsMutex.withLock {
                 val current = liveState.value
                 if (current == null || persistedState.version > current.version) {
-                    liveState.value = persistedState
+                    liveState.value = persistedState.toTextState()
                 }
             }
         }
@@ -167,7 +169,7 @@ class DefaultTextRepository(
                 is ClearDecision.Conflict ->
                     request.result.complete(ClearResult.VersionConflict(decision.currentVersion))
                 is ClearDecision.Persist -> {
-                    dataSource.saveIfNewer(decision.state)
+                    dataSource.saveIfNewer(decision.state.toPersistedTextState())
                     request.result.complete(
                         ClearResult.Cleared(
                             clearedVersion = decision.clearedVersion,
@@ -187,9 +189,23 @@ class DefaultTextRepository(
 
     private suspend fun currentLiveState(): TextState {
         liveState.value?.let { return it }
-        val persistedState = dataSource.state.first()
+        val persistedState = dataSource.state.first().toTextState()
         return requestsMutex.withLock {
             liveState.value ?: persistedState.also { liveState.value = it }
         }
     }
 }
+
+private fun TextState.toPersistedTextState(): PersistedTextState =
+    PersistedTextState(
+        text = text,
+        version = version,
+        updatedAt = updatedAt,
+    )
+
+private fun PersistedTextState.toTextState(): TextState =
+    TextState(
+        text = text,
+        version = version,
+        updatedAt = updatedAt,
+    )

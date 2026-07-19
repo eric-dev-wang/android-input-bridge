@@ -1,6 +1,8 @@
 package com.ericdevwang.inputbridge.core.data.repository
 
 import com.ericdevwang.inputbridge.core.data.model.TextState
+import com.ericdevwang.inputbridge.core.datastore.PersistedTextState
+import com.ericdevwang.inputbridge.core.datastore.TextDataSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -259,35 +261,42 @@ class DefaultTextRepositoryTest {
 }
 
 private class FakeTextDataSource(initialState: TextState) : TextDataSource {
-    private val mutableState = MutableStateFlow(initialState)
+    private val mutableState = MutableStateFlow(initialState.toPersistedTextState())
 
     var writeGate: CompletableDeferred<Unit>? = null
     val persisted = mutableListOf<TextState>()
     val currentState: TextState
-        get() = mutableState.value
+        get() = mutableState.value.toTextState()
 
     fun emitPersisted(state: TextState) {
-        mutableState.value = state
+        mutableState.value = state.toPersistedTextState()
     }
 
-    override val state: Flow<TextState> = mutableState
+    override val state: Flow<PersistedTextState> = mutableState
 
-    override suspend fun saveIfNewer(state: TextState): Boolean {
+    override suspend fun saveIfNewer(state: PersistedTextState): Boolean {
         writeGate?.let { gate ->
             writeGate = null
             gate.await()
         }
         if (state.version <= mutableState.value.version) return false
-        persisted += state
+        persisted += state.toTextState()
         mutableState.value = state
         return true
     }
 }
 
 private class FailingTextDataSource : TextDataSource {
-    override val state: Flow<TextState> = MutableStateFlow(TextState("", 0L, 0L))
+    override val state: Flow<PersistedTextState> =
+        MutableStateFlow(PersistedTextState("", 0L, 0L))
 
-    override suspend fun saveIfNewer(state: TextState): Boolean {
+    override suspend fun saveIfNewer(state: PersistedTextState): Boolean {
         error("write failed")
     }
 }
+
+private fun TextState.toPersistedTextState(): PersistedTextState =
+    PersistedTextState(text, version, updatedAt)
+
+private fun PersistedTextState.toTextState(): TextState =
+    TextState(text, version, updatedAt)
