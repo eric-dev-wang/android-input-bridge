@@ -9,7 +9,6 @@ android {
     namespace = "com.ericdevwang.inputbridge"
     defaultConfig {
         applicationId = "com.ericdevwang.inputbridge"
-        targetSdk = 37
         versionCode = rootProject.extra["bridgeVersionCode"] as Int
         versionName = rootProject.version.toString()
     }
