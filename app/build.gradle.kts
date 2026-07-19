@@ -44,7 +44,6 @@ kotlin {
 }
 
 dependencies {
-  implementation(project(":core:datastore"))
   implementation(project(":core:designsystem"))
   implementation(project(":core:data"))
   implementation(project(":protocol"))
@@ -88,7 +87,6 @@ dependencies {
   testImplementation(libs.ktor.client.websockets)
 
   // Instrumented tests: jUnit rules and runners
-  androidTestImplementation(libs.androidx.datastore.preferences)
   androidTestImplementation(libs.androidx.test.core)
   androidTestImplementation(libs.androidx.test.ext.junit)
   androidTestImplementation(libs.androidx.test.runner)

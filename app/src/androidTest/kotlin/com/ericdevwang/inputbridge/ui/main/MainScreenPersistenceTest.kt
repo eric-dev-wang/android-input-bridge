@@ -5,15 +5,16 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
-import androidx.datastore.preferences.core.edit
-import androidx.test.platform.app.InstrumentationRegistry
 import com.ericdevwang.inputbridge.MainActivity
-import com.ericdevwang.inputbridge.core.datastore.inputBridgeDataStore
+import com.ericdevwang.inputbridge.core.data.repository.ClearResult
+import com.ericdevwang.inputbridge.core.data.repository.TextRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import androidx.test.rule.GrantPermissionRule
+import kotlinx.coroutines.flow.first
+import org.koin.core.context.GlobalContext
 
 class MainScreenPersistenceTest {
     @get:Rule
@@ -25,23 +26,23 @@ class MainScreenPersistenceTest {
 
     @After
     fun clearPersistedState() {
-        clearDataStore()
+        resetRepositoryState()
     }
 
     @Test
     fun multilineUnicodeTextRestoresAfterActivityRecreation() {
-        clearDataStore()
+        val clearedVersion = resetRepositoryState()
         recreateActivity()
 
         val text = "Hello\n你好 👋🏽\n😀"
         composeTestRule.onNodeWithTag(INPUT_TEXT).performTextInput(text)
         composeTestRule.waitForIdle()
 
-        assertRestoredState(text)
+        assertRestoredState(text, clearedVersion + 1L)
 
         recreateActivity()
 
-        assertRestoredState(text)
+        assertRestoredState(text, clearedVersion + 1L)
     }
 
     private fun recreateActivity() {
@@ -49,16 +50,19 @@ class MainScreenPersistenceTest {
         composeTestRule.waitForIdle()
     }
 
-    private fun assertRestoredState(text: String) {
+    private fun assertRestoredState(text: String, version: Long) {
         composeTestRule.onNodeWithTag(INPUT_TEXT).assertTextEquals(text)
-        composeTestRule.onNodeWithTag(VERSION_TEXT).assertTextEquals("Version: 1")
+        composeTestRule.onNodeWithTag(VERSION_TEXT).assertTextEquals("Version: $version")
         composeTestRule.onNodeWithTag(CHARACTER_COUNT).assertTextEquals("Characters: 13")
     }
 
-    private fun clearDataStore() {
-        runBlocking {
-            InstrumentationRegistry.getInstrumentation().targetContext.inputBridgeDataStore.edit { preferences ->
-                preferences.clear()
+    private fun resetRepositoryState(): Long = runBlocking {
+        val repository = GlobalContext.get().get<TextRepository>()
+        val currentState = repository.state.first()
+        when (val result = repository.clear(currentState.version)) {
+            is ClearResult.Cleared -> result.newVersion
+            is ClearResult.VersionConflict -> {
+                error("Unable to reset repository state at version ${currentState.version}: $result")
             }
         }
     }
