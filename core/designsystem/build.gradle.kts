@@ -1,28 +1,13 @@
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.inputbridge.android.library)
     alias(libs.plugins.compose.compiler)
 }
 
 android {
     namespace = "com.ericdevwang.inputbridge.core.designsystem"
-    compileSdk = 37
-
-    defaultConfig {
-        minSdk = 31
-    }
-
     buildFeatures {
         compose = true
     }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-}
-
-kotlin {
-    jvmToolchain(17)
 }
 
 dependencies {

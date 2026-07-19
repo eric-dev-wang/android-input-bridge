@@ -1,6 +1,8 @@
 import org.jetbrains.intellij.platform.gradle.extensions.intellijPlatform
 
 pluginManagement {
+    includeBuild("build-logic")
+
     repositories {
         google {
             content {

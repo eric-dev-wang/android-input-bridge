@@ -1,15 +1,14 @@
 plugins {
-  alias(libs.plugins.android.application)
+  alias(libs.plugins.inputbridge.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.inputbridge.koin)
 }
 
 android {
     namespace = "com.ericdevwang.inputbridge"
-    compileSdk = 37
     defaultConfig {
         applicationId = "com.ericdevwang.inputbridge"
-        minSdk = 31
         targetSdk = 37
         versionCode = rootProject.extra["bridgeVersionCode"] as Int
         versionName = rootProject.version.toString()
@@ -20,10 +19,6 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
       compose = true
@@ -39,10 +34,6 @@ android {
     }
 }
 
-kotlin {
-    jvmToolchain(17)
-}
-
 dependencies {
   implementation(project(":core:designsystem"))
   implementation(project(":core:data"))
@@ -51,7 +42,6 @@ dependencies {
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)
-  implementation(platform(libs.koin.bom))
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)
@@ -62,7 +52,6 @@ dependencies {
   // Arch Components
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
-  implementation(libs.koin.android)
   implementation(libs.koin.androidx.compose)
 
   // Local WebSocket server
