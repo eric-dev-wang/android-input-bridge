@@ -1,9 +1,8 @@
-package com.ericdevwang.inputbridge.core.data.repository
+package com.ericdevwang.inputbridge.core.datastore
 
 import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.core.app.ApplicationProvider
-import com.ericdevwang.inputbridge.core.data.model.TextState
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.first
@@ -25,9 +24,9 @@ class DataStoreTextDataSourceTest {
             ),
         )
 
-        assertTrue(dataSource.saveIfNewer(TextState("new", 2L, 20L)))
-        assertFalse(dataSource.saveIfNewer(TextState("stale", 1L, 10L)))
-        assertEquals(TextState("new", 2L, 20L), dataSource.state.first())
+        assertTrue(dataSource.saveIfNewer(PersistedTextState("new", 2L, 20L)))
+        assertFalse(dataSource.saveIfNewer(PersistedTextState("stale", 1L, 10L)))
+        assertEquals(PersistedTextState("new", 2L, 20L), dataSource.state.first())
     }
 
     @Test
@@ -38,10 +37,10 @@ class DataStoreTextDataSourceTest {
                 produceFile = ::testFile,
             ),
         )
-        dataSource.saveIfNewer(TextState("keep", 3L, 30L))
+        dataSource.saveIfNewer(PersistedTextState("keep", 3L, 30L))
 
-        assertTrue(dataSource.saveIfNewer(TextState("", 4L, 40L)))
-        assertEquals(TextState("", 4L, 40L), dataSource.state.first())
+        assertTrue(dataSource.saveIfNewer(PersistedTextState("", 4L, 40L)))
+        assertEquals(PersistedTextState("", 4L, 40L), dataSource.state.first())
     }
 
     private fun testFile(): File =
