@@ -14,10 +14,10 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import com.ericdevwang.inputbridge.model.MAX_TEXT_CODE_POINTS
-import com.ericdevwang.inputbridge.model.TextChangeResult
-import com.ericdevwang.inputbridge.model.TextState
-import com.ericdevwang.inputbridge.theme.InputBridgeTheme
+import com.ericdevwang.inputbridge.core.data.model.MAX_TEXT_CODE_POINTS
+import com.ericdevwang.inputbridge.core.data.model.TextChangeResult
+import com.ericdevwang.inputbridge.core.data.model.TextState
+import com.ericdevwang.inputbridge.core.designsystem.InputBridgeTheme
 import org.junit.Rule
 import org.junit.Test
 

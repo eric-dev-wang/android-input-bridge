@@ -1,6 +1,6 @@
 package com.ericdevwang.inputbridge.server
 
-import com.ericdevwang.inputbridge.model.TextState
+import com.ericdevwang.inputbridge.core.data.model.TextState
 import com.ericdevwang.inputbridge.protocol.BridgeError
 import com.ericdevwang.inputbridge.protocol.BridgeMessage
 import com.ericdevwang.inputbridge.protocol.ClearCommand
@@ -13,9 +13,9 @@ import com.ericdevwang.inputbridge.protocol.ProtocolJson
 import com.ericdevwang.inputbridge.protocol.TextChanged
 import com.ericdevwang.inputbridge.protocol.TextSnapshot
 import com.ericdevwang.inputbridge.protocol.VersionConflict
-import com.ericdevwang.inputbridge.repository.ClearResult
-import com.ericdevwang.inputbridge.repository.PersistenceResult
-import com.ericdevwang.inputbridge.repository.TextRepository
+import com.ericdevwang.inputbridge.core.data.repository.ClearResult
+import com.ericdevwang.inputbridge.core.data.repository.PersistenceResult
+import com.ericdevwang.inputbridge.core.data.repository.TextRepository
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.server.testing.testApplication

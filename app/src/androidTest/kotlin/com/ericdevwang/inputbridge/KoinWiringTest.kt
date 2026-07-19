@@ -3,8 +3,8 @@ package com.ericdevwang.inputbridge
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.ericdevwang.inputbridge.repository.DefaultTextRepository
-import com.ericdevwang.inputbridge.repository.TextRepository
+import com.ericdevwang.inputbridge.core.data.repository.DefaultTextRepository
+import com.ericdevwang.inputbridge.core.data.repository.TextRepository
 import com.ericdevwang.inputbridge.server.InputWebSocketServer
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertEquals

@@ -3,6 +3,7 @@ private val ANDROID_MAX_VERSION_CODE = 2_100_000_000L
 
 plugins {
   alias(libs.plugins.android.application) apply false
+  alias(libs.plugins.android.library) apply false
   alias(libs.plugins.compose.compiler) apply false
   alias(libs.plugins.kotlin.jvm) apply false
   alias(libs.plugins.kotlin.serialization) apply false
